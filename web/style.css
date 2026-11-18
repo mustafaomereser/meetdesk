@@ -811,3 +811,89 @@ body.panel .meet-col { display: contents; }
 body.panel .meet-col > .card:first-child { order: 1; }
 body.panel .chat-card { order: 2; }
 body.panel .meet-col > .card:last-child { order: 3; }
+
+/* =====================================================================
+   İzleme penceresi: simgeli üst çubuk, sağda katılımcılar + sohbet paneli.
+   ===================================================================== */
+
+body.viewer .vbar { flex-wrap: nowrap; gap: 10px; padding: 8px 12px; min-height: 52px; }
+body.viewer .vbar .vinfo { gap: 8px; min-width: 0; overflow: hidden; }
+body.viewer .vbar .title { font-size: 14px; }
+body.viewer .vbar .vctl { gap: 4px; }
+.vbtn {
+  height: 34px; padding: 0 11px; gap: 7px; border-radius: 10px;
+  background: transparent; border: 1px solid transparent; color: var(--muted);
+  position: relative; font-size: 13px;
+}
+.vbtn svg { width: 18px; height: 18px; flex: none; }
+.vbtn:hover { background: var(--surface); border-color: transparent; color: var(--text); }
+.vbtn.on { background: var(--surface-2); color: var(--text); }
+.vbtn.danger { color: var(--bad); }
+.vbtn.danger:hover { background: rgba(255, 99, 105, .1); border-color: transparent; }
+#drawBtn.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.vbadge {
+  position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px;
+  border-radius: 9999px; background: var(--bad); color: #fff; font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+body.viewer .vset summary.vbtn { border: 1px solid transparent; background: transparent; }
+body.viewer .vset summary.vbtn::after { content: none; }
+body.viewer .vset[open] summary.vbtn, body.viewer .vset summary.vbtn:hover { background: var(--surface); color: var(--text); }
+.vset-pop { width: 320px; }
+.vgroup { padding: 10px 14px 4px; font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
+.vgroup + .vrow { border-top: 0; }
+.vrow + .vgroup { border-top: 1px solid var(--line); margin-top: 4px; }
+body.web .app-only { display: none; }
+.badge.info { background: rgba(59, 158, 255, .12); color: #8cc4ff; border-color: rgba(59, 158, 255, .4); }
+.callbar.info { background: rgba(59, 158, 255, .08); border-bottom-color: rgba(59, 158, 255, .35); }
+
+/* Orta genişlik: yalnızca simgeler (ipucu üzerine gelince) */
+@media (max-width: 1240px) {
+  body.viewer .vctl .vbtn .lbl { display: none; }
+  body.viewer .vctl .vbtn { width: 36px; padding: 0; }
+  body.viewer #muteBtn .lbl { display: inline; }
+  body.viewer #muteBtn { width: auto; padding: 0 10px; }
+}
+
+.vmain { flex: 1; min-height: 0; display: flex; position: relative; }
+.vmain .stage { flex: 1; min-width: 0; }
+.vside {
+  width: 320px; flex: none; display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; background: var(--frame); border-left: 1px solid var(--line); min-height: 0;
+}
+.vside-head { display: flex; align-items: center; gap: 6px; }
+.vside-head .spacer { flex: 1; }
+.vside-head b { font-size: 14px; }
+.vside-head .icon { width: 30px; height: 30px; padding: 0; background: transparent; border-color: transparent; }
+.vside-sub { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); border-top: 1px solid var(--line); padding-top: 10px; }
+.vpeople { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 32%; overflow-y: auto; }
+.vpeople li { display: flex; align-items: center; gap: 9px; font-size: 13px; }
+.avatar.sm { width: 26px; height: 26px; font-size: 10.5px; border-width: 2px; }
+.vp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.vp-meta { font-size: 11.5px; color: var(--faint); }
+.vside .chat-list { flex: 1; }
+.vside .chat-form input { height: 38px; }
+.vside .icon-btn { width: 38px; height: 38px; }
+
+.xfer {
+  position: fixed; left: 16px; bottom: 16px; z-index: 50; max-width: calc(100vw - 32px);
+  padding: 9px 14px; border-radius: 10px; font-size: 13px;
+  background: var(--surface-2); border: 1px solid var(--line-2); box-shadow: 0 10px 30px rgba(0, 0, 0, .4);
+}
+
+/* Sunum penceresi (başkasının paylaştığı ekran): toplantı araçları yok */
+body.stage-view #drawBtn, body.stage-view #fileBtnV, body.stage-view #callBtn, body.stage-view #chatBtn,
+body.stage-view #presentRow, body.stage-view #privSw, body.stage-view #followSw { display: none; }
+
+/* Dar ekran: yan panel tüm alanı kaplar */
+@media (max-width: 700px) {
+  .vside { position: fixed; inset: 0; z-index: 65; width: auto; border-left: 0; padding-top: calc(12px + env(safe-area-inset-top)); padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+  body.touch.menu-open .vbar .vctl .vbtn .lbl, body.menu-open .vbar .vctl .vbtn .lbl { display: inline; }
+  body.menu-open .vbar .vctl .vbtn { width: 100%; justify-content: flex-start; padding: 0 14px; height: 44px; background: var(--surface); }
+  body.menu-open .vset summary.vbtn { display: none; }
+}
+body.touch.menu-open .vbar .vctl .vbtn .lbl { display: inline; }
+body.touch.menu-open .vbar .vctl .vbtn { width: 100%; justify-content: flex-start; padding: 0 14px; height: 44px; background: var(--surface); }
+body.touch.menu-open .vset summary.vbtn { display: none; }
+body.touch.side-open .fabs { display: none; }
+.badge.people { color: var(--muted); border-color: var(--line-2); }

@@ -65,7 +65,7 @@ if (webMode) document.body.classList.add('web');
   } else {
     conn = takeConnection();
   }
-  if (conn) connect(conn);
+  if (conn) { window.__conn = conn; if (conn.stage) document.body.classList.add('stage-view'); connect(conn); }
   else showOverlay('Bağlantı bilgisi bulunamadı. Bu pencereyi ana pencereden açmalısın.', true);
 })();
 
@@ -104,7 +104,7 @@ const isHubId = (id) => /^\d{9}$/.test(id) || /^[a-z][a-z0-9-]{2,22}[a-z0-9]$/.t
 
 async function connect({ id, pw, name, label }) {
   label = label || id;
-  document.title = label + ' · RemoteDesk';
+  document.title = label + ' · Meetdesk';
   if (window.rdSetTitle) window.rdSetTitle(document.title);
   $('vTitle').textContent = label;
 
@@ -321,6 +321,7 @@ function onMessage(ev) {
         $('permBadge').classList.toggle('hidden', !!m.control);
         $('permBadge').title = 'Karşı taraf fare ve klavye iznini kapattı; ekranı yalnızca izleyebilirsin.';
         clipAllowed = !!m.clipboard;
+        filesAllowed = m.files !== false;
         break;
       case 'secure':
         secureOn = !!m.on;
@@ -351,6 +352,21 @@ function onMessage(ev) {
         break;
       case 'people':
         renderPeople(m.list || [], m.me);
+        break;
+      case 'chat':
+        onChat(m);
+        break;
+      case 'pt':
+        addPing(m.x, m.y, m.d | 0, m.c, m.n);
+        break;
+      case 'privacy':
+      case 'follow':
+      case 'stage':
+      case 'askpresent':
+        onMeeting(m);
+        break;
+      case 'fs': case 'fc': case 'fe': case 'fa': case 'fd': case 'fx':
+        onFileMsg(m);
         break;
       case 'dr':
       case 'drc':
@@ -674,7 +690,8 @@ canvas.addEventListener('wheel', (e) => {
 // ---- klavye ----
 
 function fromToolbar(e) {
-  return e.target && e.target.closest && (e.target.closest('#bar') || e.target.closest('#vctl') || e.target.id === 'kb' || e.target.closest('#mbar') || e.target.closest('#inkBar'));
+  return e.target && e.target.closest && (e.target.closest('#bar') || e.target.closest('#vctl') || e.target.id === 'kb' || e.target.closest('#mbar') || e.target.closest('#inkBar') ||
+    e.target.closest('#sidePanel') || e.target.closest('.callbar'));
 }
 
 window.addEventListener('keydown', (e) => {
@@ -761,7 +778,7 @@ $('fs').onclick = async (e) => {
 document.addEventListener('fullscreenchange', () => {
   const on = !!document.fullscreenElement;
   document.body.classList.toggle('fs', on);
-  $('fs').textContent = on ? 'Tam ekrandan çık' : 'Tam ekran';
+  setLbl($('fs'), on ? 'Tam ekrandan çık' : 'Tam ekran');
   if (!on && navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock();
 });
 
@@ -781,12 +798,12 @@ const call = new VoiceCall({
 function renderCall(state, info) {
   const btn = $('callBtn');
   btn.classList.toggle('danger', state !== 'idle' && state !== 'error' && state !== 'incoming');
-  btn.textContent = state === 'calling' ? 'Aramayı iptal et'
+  setLbl(btn, state === 'calling' ? 'Aramayı iptal et'
     : state === 'connecting' || state === 'active' ? 'Görüşmeyi kapat'
-    : 'Sesli görüşme';
+    : 'Sesli görüşme');
   btn.classList.toggle('hidden', state === 'incoming');
   $('muteBtn').classList.toggle('hidden', state !== 'active');
-  if (state !== 'active') $('muteBtn').textContent = 'Sessize al';
+  if (state !== 'active') setLbl($('muteBtn'), 'Sessize al');
   const bar = $('callBar');
   if (state === 'incoming') {
     $('callText').textContent = 'Karşı taraf sesli görüşme başlatmak istiyor.';
@@ -812,7 +829,7 @@ $('callBtn').onclick = (e) => {
   canvas.focus();
 };
 $('muteBtn').onclick = (e) => {
-  e.target.textContent = call.toggleMute() ? 'Sesi aç' : 'Sessize al';
+  setLbl($('muteBtn'), call.toggleMute() ? 'Sesi aç' : 'Sessize al');
   e.target.blur();
   canvas.focus();
 };
@@ -1057,7 +1074,7 @@ function setDrawMode(on) {
   document.body.classList.toggle('drawing', on);
   $('inkBar').classList.toggle('hidden', !on);
   $('drawBtn').classList.toggle('on', on);
-  $('drawBtn').textContent = on ? 'Çizimi bitir' : 'Çiz';
+  setLbl($('drawBtn'), on ? 'Çizimi bitir' : 'Çiz');
   if (on) {
     $('inkBar').style.setProperty('--vbar-h', $('bar').getBoundingClientRect().bottom + 'px');
     if (typeof setMenu === 'function') setMenu(false);
@@ -1139,6 +1156,12 @@ ink.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   if (drawing) return; // ikinci parmak: yok say
   e.preventDefault();
+  if (inkTool === 'ping') {
+    const [x, y] = normPoint(e);
+    send({ t: 'pt', x, y });
+    addPing(x, y, inkDisp, myColor(), '');
+    return;
+  }
   ink.setPointerCapture(e.pointerId);
   myK++;
   const wd = inkTool === 'laser' ? LASER_WIDTH : PEN_WIDTH;
@@ -1193,9 +1216,12 @@ function inkFrame(now) {
     // Bitmiş lazer söner; bağlantısı kopan kişinin yarım kalan lazeri 5 sn sonra silinir.
     if ((st.e && now - st.t > LASER_LIFE) || (!st.e && !st.mine && now - (st.u || 0) > 5000)) { strokes.delete(id); inkDirty = true; } else fading = true;
   }
+  pings = pings.filter((p) => now - p.t0 < PING_LIFE);
+  if (pings.length) fading = true;
   if (!inkDirty && !fading) return;
   inkDirty = false;
   drawInk(now);
+  drawPings(now);
 }
 requestAnimationFrame(inkFrame);
 
@@ -1247,3 +1273,424 @@ function drawInk(now) {
     ictx.restore();
   }
 }
+
+// =====================================================================
+// Toplantı: katılımcılar, sohbet, işaret, dosya, gizlilik, sunum, ekran paylaşımı
+// =====================================================================
+
+function setLbl(btn, text) {
+  const l = btn.querySelector('.lbl');
+  if (l) l.textContent = text; else btn.textContent = text;
+  btn.title = text;
+}
+
+let people = [];
+let filesAllowed = true;
+function myColor() {
+  const me = people.find((p) => p.id === mySid);
+  return (me && me.color) || '#3b9eff';
+}
+
+// renderPeople (yukarıdaki) yerine: yan paneldeki katılımcı listesi + sayaç
+const _renderPeopleBase = renderPeople;
+renderPeople = function (list, me) {
+  _renderPeopleBase(list, me);
+  people = list;
+  $('sideCount').textContent = list.length > 1 ? `· ${list.length} kişi` : '';
+  const ul = $('vPeople');
+  ul.innerHTML = '';
+  for (const p of list) {
+    const li = document.createElement('li');
+    const av = document.createElement('span');
+    av.className = 'avatar sm';
+    av.style.setProperty('--c', p.color || '#777b84');
+    av.textContent = (p.name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+    const nm = document.createElement('span');
+    nm.className = 'vp-name';
+    nm.textContent = p.name + (p.id === me ? ' (sen)' : '');
+    const st = document.createElement('span');
+    st.className = 'vp-meta';
+    st.textContent = p.control ? 'kontrol' : 'izliyor';
+    li.append(av, nm, st);
+    ul.appendChild(li);
+  }
+  // Benim rengim: çizim varsayılanı
+  const mine = list.find((p) => p.id === me);
+  if (mine && mine.color && !colorPicked) {
+    inkCol = mine.color;
+    for (const x of document.querySelectorAll('#inkBar [data-col]')) x.classList.toggle('on', x.dataset.col === inkCol);
+  }
+};
+let colorPicked = false;
+for (const b of document.querySelectorAll('#inkBar [data-col]')) b.addEventListener('click', () => { colorPicked = true; });
+
+// ---- yan panel ve sohbet ----
+let unread = 0;
+function setSide(open) {
+  $('sidePanel').classList.toggle('hidden', !open);
+  document.body.classList.toggle('side-open', open);
+  $('chatBtn').classList.toggle('on', open);
+  if (open) {
+    unread = 0;
+    $('chatBadge').classList.add('hidden');
+    setMenu(false);
+    if (!touchUI) setTimeout(() => $('vChatInput').focus(), 0);
+    $('vChat').scrollTop = $('vChat').scrollHeight;
+  } else {
+    canvas.focus();
+  }
+}
+$('chatBtn').onclick = (e) => { e.currentTarget.blur(); setSide($('sidePanel').classList.contains('hidden')); };
+$('sideClose').onclick = () => setSide(false);
+
+let lastChat = null;
+const pageOpenedAt = Date.now();
+function onChat(m) {
+  const box = $('vChat');
+  const empty = box.querySelector('.chat-empty');
+  if (empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'msg' + (m.id === mySid ? ' mine' : '');
+  if (!lastChat || lastChat.id !== m.id || m.ts - lastChat.ts > 120000) {
+    const head = document.createElement('div');
+    head.className = 'msg-head';
+    const dot = document.createElement('span');
+    dot.className = 'msg-dot';
+    dot.style.background = m.c;
+    const b = document.createElement('b');
+    b.textContent = m.id === mySid ? m.n + ' (sen)' : m.n;
+    const t = document.createElement('span');
+    t.className = 'msg-time';
+    t.textContent = new Date(m.ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    head.append(dot, b, t);
+    row.appendChild(head);
+  }
+  const tx = document.createElement('div');
+  tx.className = 'msg-text';
+  tx.textContent = m.text;
+  row.appendChild(tx);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+  lastChat = m;
+  // Bağlanmadan önce yazılmış (geçmiş) mesajlar için bildirim yok.
+  if ($('sidePanel').classList.contains('hidden') && m.id !== mySid && m.ts > pageOpenedAt) {
+    unread++;
+    $('chatBadge').textContent = unread > 9 ? '9+' : unread;
+    $('chatBadge').classList.remove('hidden');
+    toast(`${m.n}: ${m.text.slice(0, 80)}`);
+  }
+}
+(function chatEmpty() {
+  const d = document.createElement('div');
+  d.className = 'chat-empty';
+  d.textContent = 'Yazdığın mesajı bağlı herkes ve karşı bilgisayardaki kişi görür.';
+  $('vChat').appendChild(d);
+})();
+$('vChatForm').onsubmit = (e) => {
+  e.preventDefault();
+  const text = $('vChatInput').value.trim();
+  if (!text || !connected) return;
+  send({ t: 'chat', text });
+  $('vChatInput').value = '';
+};
+
+// ---- işaret ----
+const PING_LIFE = 3000, PING_BLINK = 700;
+let pings = []; // {x, y, d, c, t0}
+function addPing(x, y, d, color, name) {
+  pings.push({ x, y, d, c: color || '#3b9eff', n: name, t0: performance.now() });
+  if (pings.length > 30) pings.shift();
+  inkDirty = true;
+}
+function drawPings(now) {
+  if (!pings.length) return;
+  const W = ink.width, H = ink.height;
+  const dpr = window.devicePixelRatio || 1;
+  for (const p of pings) {
+    if (p.d !== inkDisp) continue;
+    const t = now - p.t0;
+    let a = 1;
+    if (t < PING_BLINK) a = Math.floor(t / 110) % 2 === 0 ? 1 : 0.15; // hızlı yanıp sönme
+    else if (t > PING_LIFE - 600) a = Math.max(0, (PING_LIFE - t) / 600);
+    const pop = t < 160 ? 0.7 + 0.3 * (t / 160) : 1;
+    const r = 20 * dpr * pop;
+    const x = p.x / 10000 * W, y = p.y / 10000 * H;
+    ictx.save();
+    ictx.globalAlpha = a;
+    ictx.fillStyle = p.c;
+    ictx.globalAlpha = a * 0.28;
+    ictx.beginPath();
+    ictx.arc(x, y, r, 0, Math.PI * 2);
+    ictx.fill();
+    ictx.globalAlpha = a;
+    ictx.strokeStyle = p.c;
+    ictx.lineWidth = 3 * dpr;
+    ictx.beginPath();
+    ictx.arc(x, y, r, 0, Math.PI * 2);
+    ictx.stroke();
+    if (p.n && t < PING_LIFE - 600) {
+      const fs = 11 * dpr;
+      ictx.font = `600 ${fs}px system-ui, sans-serif`;
+      const tw = ictx.measureText(p.n).width;
+      ictx.fillStyle = p.c;
+      ictx.fillRect(x + r + 4 * dpr, y - fs, tw + fs, fs * 1.7);
+      ictx.fillStyle = p.c === '#ffffff' || p.c === '#ffd60a' ? '#000' : '#fff';
+      ictx.fillText(p.n, x + r + 4 * dpr + fs / 2, y + fs * 0.35);
+    }
+    ictx.restore();
+  }
+}
+
+// ---- gizlilik, sunum takibi, ekran paylaşımı ----
+let following = null; // monitörünü takip ettiğimiz kişi
+let presenting = false; // ekranımı toplantıya açtım
+let stageWanted = null; // {id, pw, n}
+const isStageWindow = () => !!(window.__conn && window.__conn.stage);
+
+function onMeeting(m) {
+  switch (m.t) {
+    case 'privacy':
+      $('privSw').checked = !!m.on;
+      $('privBadge').classList.toggle('hidden', !m.on);
+      if (m.n) toast(m.on ? `${m.n} gizlilik modunu açtı` : 'Gizlilik modu kapandı');
+      break;
+    case 'follow':
+      if (!m.on) {
+        if (following && (!m.id || following.id === m.id)) following = null;
+        if (m.id === mySid) $('followSw').checked = false;
+      } else if (m.id === mySid) {
+        following = null;
+        $('followSw').checked = true;
+      } else {
+        following = { id: m.id, n: m.n };
+        $('followSw').checked = false;
+      }
+      $('followBadge').classList.toggle('hidden', !following);
+      $('followBadge').textContent = following ? `${following.n} sunuyor` : '';
+      $('followBadge').title = following ? `${following.n} monitör değiştirince sen de o monitörü görürsün.` : '';
+      break;
+    case 'stage':
+      onStage(m);
+      break;
+    case 'askpresent':
+      if (webMode) { toast(`${m.n || 'Toplantı sahibi'} ekranını göstermeni istiyor (uygulamada çalışır)`); break; }
+      $('askText').textContent = `${m.n || 'Toplantı sahibi'} ekranını herkese göstermeni istiyor.`;
+      $('askBar').classList.remove('hidden');
+      break;
+  }
+}
+
+$('privSw').onchange = (e) => { send({ t: 'privacy', on: e.target.checked }); };
+$('followSw').onchange = (e) => { send({ t: 'follow', on: e.target.checked }); };
+
+async function setPresent(on) {
+  if (on) {
+    try {
+      const r = await fetch('/api/meeting/present', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"on":true}' });
+      if (!r.ok) throw new Error((await r.text()).trim());
+      const j = await r.json();
+      send({ t: 'present', id: j.id, pw: j.pw });
+      presenting = true;
+      toast('Ekranın toplantıdakilere açıldı');
+    } catch (err) { toast(err.message || 'Ekran paylaşılamadı'); return; }
+  } else {
+    send({ t: 'present', id: '' });
+    fetch('/api/meeting/present', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"on":false}' }).catch(() => {});
+    presenting = false;
+    toast('Ekran paylaşımı bitti');
+  }
+  $('presentBtn').textContent = presenting ? 'Paylaşımı bitir' : 'Göster';
+  $('presentBtn').classList.toggle('danger', presenting);
+}
+$('presentBtn').onclick = () => setPresent(!presenting);
+$('askYes').onclick = () => { $('askBar').classList.add('hidden'); setPresent(true); };
+$('askNo').onclick = () => $('askBar').classList.add('hidden');
+window.addEventListener('beforeunload', () => { if (presenting) setPresent(false); });
+
+// Ekran paylaşımı: başka biri kendi bilgisayarını toplantıya açtı. Uygulamada o bilgisayar ayrı
+// bir pencerede (yalnızca izleme) açılır; paylaşım bitince kapanır.
+const bc = (() => { try { return new BroadcastChannel('meetdesk'); } catch { return null; } })();
+function onStage(m) {
+  if (!m.id) {
+    if (stageWanted && bc) bc.postMessage({ type: 'stage-end', id: stageWanted.id });
+    stageWanted = null;
+    $('stageBar').classList.add('hidden');
+    return;
+  }
+  stageWanted = { id: m.id, pw: m.pw, n: m.n };
+  $('stageText').textContent = `${m.n} ekranını toplantıdakilere gösteriyor.`;
+  $('stageBar').classList.remove('hidden');
+  $('stageBtn').classList.toggle('hidden', webMode);
+  if (webMode) { $('stageText').textContent += ' (İzlemek için Meetdesk uygulaması gerekir.)'; return; }
+  openStage();
+}
+function openStage() {
+  if (!stageWanted) return;
+  fetch('/api/viewer/open', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: stageWanted.id, pw: stageWanted.pw, name: myName(), label: `${stageWanted.n} · sunum`, stage: true }),
+  }).catch(() => {});
+}
+$('stageBtn').onclick = openStage;
+function myName() {
+  const me = people.find((p) => p.id === mySid);
+  return me ? me.name : '';
+}
+if (bc) {
+  bc.onmessage = (e) => {
+    const d = e.data || {};
+    if (d.type === 'stage-end' && isStageWindow() && window.__conn.id === d.id) {
+      failed = true;
+      if (ws) ws.close();
+      window.close();
+    }
+  };
+}
+
+// ---- dosya aktarımı ----
+const FILE_CHUNK = 48 * 1024, FILE_WINDOW = 1024 * 1024;
+const outgoing = new Map(); // fid -> {file, sent, acked, resolve...}
+const incoming = new Map(); // fid -> {name, size, parts, n}
+let fseq = 0;
+
+function xferShow(text) {
+  const x = $('xfer');
+  x.textContent = text;
+  x.classList.toggle('hidden', !text);
+}
+function b64(buf) {
+  let s = '';
+  const u = new Uint8Array(buf);
+  for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function unb64(s) {
+  const bin = atob(s);
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return u;
+}
+
+async function sendFile(file) {
+  if (!connected) return;
+  if (!filesAllowed) { toast('Karşı taraf dosya almayı kapatmış.'); return; }
+  const fid = 'v' + (++fseq);
+  const o = { file, sent: 0, acked: -1, err: null, wake: null };
+  outgoing.set(fid, o);
+  const wait = () => new Promise((r) => { o.wake = r; setTimeout(r, 1000); });
+  send({ t: 'fs', fid, name: file.name, size: file.size });
+  // İlk onay (alıcı hazır) beklenir
+  for (let i = 0; i < 30 && o.acked < 0 && !o.err; i++) await wait();
+  try {
+    if (o.err) throw new Error(o.err);
+    if (o.acked < 0) throw new Error('Karşı taraf yanıt vermedi.');
+    while (o.sent < file.size) {
+      while (o.sent - o.acked > FILE_WINDOW && !o.err && connected) await wait();
+      if (o.err) throw new Error(o.err);
+      if (!connected) throw new Error('Bağlantı koptu.');
+      const end = Math.min(o.sent + FILE_CHUNK, file.size);
+      const buf = await file.slice(o.sent, end).arrayBuffer();
+      send({ t: 'fc', fid, n: o.sent, data: b64(buf) });
+      o.sent = end;
+      xferShow(`Gönderiliyor: ${file.name} · %${Math.floor((o.sent / Math.max(1, file.size)) * 100)}`);
+    }
+    send({ t: 'fe', fid });
+    for (let i = 0; i < 60 && !o.done && !o.err; i++) await wait();
+    if (o.err) throw new Error(o.err);
+    toast(`Gönderildi: ${file.name}`);
+  } catch (err) {
+    send({ t: 'fx', fid });
+    toast(err.message || 'Dosya gönderilemedi');
+  } finally {
+    outgoing.delete(fid);
+    xferShow('');
+  }
+}
+
+async function saveIncoming(f) {
+  const blob = new Blob(f.parts);
+  if (!webMode) {
+    try {
+      const r = await fetch('/api/files/save?name=' + encodeURIComponent(f.name), { method: 'POST', body: blob });
+      if (!r.ok) throw new Error();
+      const j = await r.json();
+      toast(`Dosya alındı: ${j.name} (İndirilenler/Meetdesk)`);
+      return;
+    } catch {}
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = f.name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  toast(`Dosya alındı: ${f.name}`);
+}
+
+function onFileMsg(m) {
+  switch (m.t) {
+    // karşı bilgisayardan gelen dosya
+    case 'fs':
+      incoming.set(m.fid, { name: m.name || 'dosya', size: m.size || 0, parts: [], n: 0, last: 0 });
+      send({ t: 'fa', fid: m.fid, n: 0 });
+      xferShow(`Alınıyor: ${m.name}`);
+      break;
+    case 'fc': {
+      const f = incoming.get(m.fid);
+      if (!f) return;
+      const u = unb64(m.data || '');
+      f.parts.push(u);
+      f.n += u.length;
+      if (f.n - f.last >= 256 * 1024) { f.last = f.n; send({ t: 'fa', fid: m.fid, n: f.n }); }
+      xferShow(`Alınıyor: ${f.name} · %${Math.floor((f.n / Math.max(1, f.size)) * 100)}`);
+      break;
+    }
+    case 'fe': {
+      const f = incoming.get(m.fid);
+      incoming.delete(m.fid);
+      xferShow('');
+      if (f) { send({ t: 'fa', fid: m.fid, n: f.n }); saveIncoming(f); }
+      break;
+    }
+    // benim gönderdiğim dosyanın durumu
+    case 'fa': {
+      const o = outgoing.get(m.fid);
+      if (o) { o.acked = Math.max(o.acked, m.n || 0); if (o.wake) o.wake(); }
+      break;
+    }
+    case 'fd': {
+      const o = outgoing.get(m.fid);
+      if (o) { o.done = true; if (o.wake) o.wake(); }
+      break;
+    }
+    case 'fx': {
+      const o = outgoing.get(m.fid);
+      if (o) { o.err = m.msg || 'Dosya gönderilemedi.'; if (o.wake) o.wake(); }
+      else if (incoming.has(m.fid)) { incoming.delete(m.fid); xferShow(''); toast('Dosya aktarımı iptal edildi.'); }
+      break;
+    }
+  }
+}
+
+async function sendFiles(list) { for (const f of list) await sendFile(f); }
+$('fileBtnV').onclick = (e) => { e.currentTarget.blur(); $('fileInputV').click(); };
+$('fileInputV').onchange = (e) => { sendFiles([...e.target.files]); e.target.value = ''; };
+(function viewerDrop() {
+  let depth = 0;
+  const zone = $('vdrop');
+  const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  window.addEventListener('dragenter', (e) => { if (!connected || !hasFiles(e)) return; depth++; zone.classList.remove('hidden'); });
+  window.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; zone.classList.add('hidden'); } });
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('drop', (e) => {
+    depth = 0;
+    zone.classList.add('hidden');
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    if (connected) sendFiles([...e.dataTransfer.files]);
+  });
+})();
+
+// Sunum penceresi (başkasının paylaştığı ekran): yalnızca izleme, toplantı araçları gizli.
+if (isStageWindow()) document.body.classList.add('stage-view');

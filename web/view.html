@@ -3,25 +3,49 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <title>Bağlanıyor… · RemoteDesk</title>
+  <title>Bağlanıyor… · Meetdesk</title>
   <link rel="stylesheet" href="style.css">
   <script src="titlebar.js"></script>
 </head>
 <body class="viewer">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="v-pen" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/><path d="M14 6l3 3"/></g></symbol>
+      <symbol id="v-chat" viewBox="0 0 24 24"><path d="M20 15a2 2 0 01-2 2H8l-4 4V6a2 2 0 012-2h12a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+      <symbol id="v-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"/></g></symbol>
+      <symbol id="v-mic" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></g></symbol>
+      <symbol id="v-gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></g></symbol>
+      <symbol id="v-full" viewBox="0 0 24 24"><path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="v-leave" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h3a2 2 0 012 2v12a2 2 0 01-2 2h-3M10 16l-4-4 4-4M6 12h10"/></g></symbol>
+      <symbol id="v-ping" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor" fill-opacity=".35"/></g></symbol>
+      <symbol id="v-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+      <symbol id="v-screen" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/></g></symbol>
+    </defs>
+  </svg>
+
   <div id="bar" class="vbar" data-titlebar>
     <div class="vinfo">
-      <span id="vTitle" class="title mono"></span>
+      <span id="vTitle" class="title"></span>
       <span id="busy" class="badge hidden"></span>
       <span id="permBadge" class="badge hidden">Yalnızca izleme</span>
       <span id="people" class="badge people hidden"></span>
+      <span id="followBadge" class="badge info hidden"></span>
+      <span id="privBadge" class="badge info hidden">Gizlilik modu</span>
       <span id="vStat" class="stat mono"></span>
     </div>
     <button id="menuBtn" class="small menu-btn" type="button" aria-label="Menü">Menü</button>
     <div class="vctl" id="vctl">
       <select id="display" class="vdisp hidden" title="Görüntülenen monitör"></select>
+      <button id="drawBtn" class="vbtn" type="button" title="Çiz ve işaret et: bağlı herkes ve karşı taraf görür"><svg><use href="#v-pen"/></svg><span class="lbl">Çiz</span></button>
+      <button id="chatBtn" class="vbtn" type="button" title="Katılımcılar ve sohbet"><svg><use href="#v-chat"/></svg><span class="lbl">Sohbet</span><b id="chatBadge" class="vbadge hidden"></b></button>
+      <button id="fileBtnV" class="vbtn" type="button" title="Karşı bilgisayara dosya gönder (sürükleyip bırakabilirsin)"><svg><use href="#v-file"/></svg><span class="lbl">Dosya</span></button>
+      <input type="file" id="fileInputV" multiple hidden>
+      <button id="callBtn" class="vbtn" type="button" title="Sesli görüşme"><svg><use href="#v-mic"/></svg><span class="lbl">Ses</span></button>
+      <button id="muteBtn" class="vbtn hidden" type="button"><span class="lbl">Sessize al</span></button>
       <details id="vset" class="vset">
-        <summary>Ayarlar</summary>
+        <summary class="vbtn" title="Ayarlar"><svg><use href="#v-gear"/></svg><span class="lbl">Ayarlar</span></summary>
         <div class="vset-pop">
+          <div class="vgroup">Görüntü</div>
           <label class="vrow" title="H.264 akıcıdır ve az bant genişliği kullanır, JPEG her yerde çalışır"><span>Sıkıştırma</span>
             <select id="codec">
               <option value="h264">H.264</option>
@@ -35,15 +59,16 @@
               <option value="85">Kaliteli</option>
             </select>
           </label>
-          <label class="vrow" title="Panoyu (kopyala/yapıştır) iki yönlü senkronize et"><span>Pano paylaşımı</span><input type="checkbox" class="switch" id="clipSync" checked></label>
           <label class="vrow"><span>Gerçek boyut</span><input type="checkbox" class="switch" id="scale"></label>
+          <label class="vrow" title="Panoyu (kopyala/yapıştır) iki yönlü senkronize et"><span>Pano paylaşımı</span><input type="checkbox" class="switch" id="clipSync" checked></label>
+          <div class="vgroup">Toplantı</div>
+          <label class="vrow" title="Karşı bilgisayarın ekranı kararır; sen görmeye devam edersin"><span>Gizlilik modu</span><input type="checkbox" class="switch" id="privSw"></label>
+          <label class="vrow" title="Monitör değiştirdiğinde bağlı herkesin görüntüsü de değişir"><span>Herkes benim monitörümü izlesin</span><input type="checkbox" class="switch" id="followSw"></label>
+          <div class="vrow app-only" id="presentRow"><span>Ekranımı herkese göster</span><button class="small" type="button" id="presentBtn">Göster</button></div>
         </div>
       </details>
-      <button id="drawBtn" class="small" title="Ekrana çiz: bağlı herkes ve karşı taraf görür">Çiz</button>
-      <button id="callBtn" class="small" title="Karşı tarafla sesli konuş">Sesli görüşme</button>
-      <button id="muteBtn" class="small hidden">Sessize al</button>
-      <button id="fs" class="small">Tam ekran</button>
-      <button id="disc" class="danger small">Bağlantıyı kes</button>
+      <button id="fs" class="vbtn" type="button" title="Tam ekran"><svg><use href="#v-full"/></svg><span class="lbl">Tam ekran</span></button>
+      <button id="disc" class="vbtn danger" type="button" title="Bağlantıyı kes"><svg><use href="#v-leave"/></svg><span class="lbl">Ayrıl</span></button>
     </div>
   </div>
   <div id="callBar" class="callbar hidden">
@@ -52,7 +77,19 @@
     <span class="call-btns"><button id="callAccept" class="primary small">Kabul et</button>
     <button id="callReject" class="small">Reddet</button></span>
   </div>
+  <div id="askBar" class="callbar hidden">
+    <span id="askText"></span>
+    <span class="spacer"></span>
+    <span class="call-btns"><button id="askYes" class="primary small">Ekranımı göster</button>
+    <button id="askNo" class="small">Hayır</button></span>
+  </div>
+  <div id="stageBar" class="callbar info hidden">
+    <span id="stageText"></span>
+    <span class="spacer"></span>
+    <button id="stageBtn" class="small hidden">İzle</button>
+  </div>
   <div id="vwarn" class="vwarn hidden"></div>
+  <div class="vmain">
   <div id="stage" class="stage">
     <canvas id="screen" class="fit" tabindex="0"></canvas>
     <div id="overlay" class="overlay">Bağlanıyor…</div>
@@ -64,6 +101,9 @@
       </button>
       <button type="button" class="itool" data-tool="laser" title="Lazer işaretçi (kısa süre sonra kaybolur)" aria-label="Lazer">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3.2" fill="currentColor"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg>
+      </button>
+      <button type="button" class="itool" data-tool="ping" title="İşaret et: dokunduğun yerde senin renginde bir daire yanıp söner" aria-label="İşaret et">
+        <svg width="18" height="18"><use href="#v-ping"/></svg>
       </button>
       <span class="isep"></span>
       <button type="button" class="iswatch on" data-col="#ff453a" style="--c:#ff453a" aria-label="Kırmızı"></button>
@@ -83,7 +123,7 @@
     <!-- Tarayıcıdan erişim: tünel adresi doğrudan açıldığında şifre sorulur. -->
     <form id="webLogin" class="weblogin hidden" autocomplete="off">
       <div class="wl-card">
-        <div class="brand"><span class="logo"></span>RemoteDesk</div>
+        <div class="brand"><span class="logo"></span>Meetdesk</div>
         <p class="wl-lead">Şifreyi biliyorsan gir; boş bırakırsan karşı taraf bağlantı isteğini onaylar.</p>
         <div class="field">
           <label for="wlName">Adın</label>
@@ -99,6 +139,23 @@
       </div>
     </form>
   </div>
+  <aside id="sidePanel" class="vside hidden" aria-label="Toplantı">
+    <div class="vside-head">
+      <b>Toplantı</b><span id="sideCount" class="muted"></span>
+      <span class="spacer"></span>
+      <button id="sideClose" class="icon" type="button" title="Kapat" aria-label="Kapat">✕</button>
+    </div>
+    <ul id="vPeople" class="vpeople"></ul>
+    <div class="vside-sub">Sohbet</div>
+    <div id="vChat" class="chat-list"></div>
+    <form id="vChatForm" class="chat-form" autocomplete="off">
+      <input id="vChatInput" type="text" maxlength="2000" placeholder="Herkese mesaj yaz…">
+      <button class="primary icon-btn" type="submit" title="Gönder" aria-label="Gönder"><svg width="16" height="16"><use href="#v-send"/></svg></button>
+    </form>
+  </aside>
+  </div>
+  <div id="xfer" class="xfer hidden"></div>
+  <div id="vdrop" class="dropzone hidden"><div>Bırak, karşı bilgisayara gönderilsin</div></div>
   <!-- Dokunmatik ekran: sağ altta yüzen düğmeler ve telefon klavyesi için gizli giriş kutusu -->
   <div id="mbar" class="fabs">
     <button id="zoomReset" type="button" class="fab sm hidden" aria-label="Sığdır" title="Sığdır">

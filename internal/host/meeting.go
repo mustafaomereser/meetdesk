@@ -130,6 +130,12 @@ func (s *Server) handleMeeting(ctx context.Context, sess *session, m *message) b
 // ---- sohbet ----
 
 func (s *Server) chat(msg ChatMsg) {
+	s.mu.Lock()
+	s.chatLog = append(s.chatLog, msg)
+	if len(s.chatLog) > 100 {
+		s.chatLog = s.chatLog[len(s.chatLog)-100:]
+	}
+	s.mu.Unlock()
 	s.broadcast(map[string]any{"t": "chat", "id": msg.ID, "n": msg.Name, "c": msg.Color, "text": msg.Text, "ts": msg.TS}, -1)
 	if s.OnChat != nil {
 		s.OnChat(msg)
@@ -572,6 +578,7 @@ func (sess *session) sendFile(name string, size int64, open func() (io.ReadClose
 func (s *Server) sendMeetingState(ctx context.Context, sess *session) {
 	s.mu.Lock()
 	privacy, presenter, stageBy, stageID, stageKey := s.privacy, s.presenter, s.stageBy, s.stageID, s.stageKey
+	history := append([]ChatMsg(nil), s.chatLog...)
 	pname, sname := "", ""
 	if m := s.sessions[presenter]; m != nil {
 		pname = m.name
@@ -580,6 +587,9 @@ func (s *Server) sendMeetingState(ctx context.Context, sess *session) {
 		sname = m.name
 	}
 	s.mu.Unlock()
+	for _, m := range history { // sonradan katılan, sohbetin geçmişini de görür
+		sess.c.WriteJSON(ctx, map[string]any{"t": "chat", "id": m.ID, "n": m.Name, "c": m.Color, "text": m.Text, "ts": m.TS})
+	}
 	if privacy {
 		sess.c.WriteJSON(ctx, map[string]any{"t": "privacy", "on": true})
 	}

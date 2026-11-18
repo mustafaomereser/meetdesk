@@ -19,6 +19,7 @@ type viewerConn struct {
 	Pw    string `json:"pw"`
 	Name  string `json:"name"`
 	Label string `json:"label"`
+	Stage bool   `json:"stage,omitempty"` // toplantıda paylaşılan ekran (yalnızca izleme)
 }
 
 type viewerSet struct {

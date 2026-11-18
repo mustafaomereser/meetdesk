@@ -68,6 +68,7 @@ type Server struct {
 	stageBy    int      // ekranını toplantıya açan kişi (0: yok)
 	stageID    string
 	stageKey   string
+	chatLog    []ChatMsg // toplantının sohbet geçmişi (herkes çıkınca silinir)
 	fails      int
 	lockUntil  time.Time
 	unauthed   int // henüz şifresini göndermemiş bağlantı sayısı
@@ -601,5 +602,8 @@ func (s *Server) release(sid int) {
 	s.mu.Unlock()
 	if empty {
 		s.ClearInk() // herkes çıkınca ekrandaki çizimler de silinir
+		s.mu.Lock()
+		s.chatLog = nil
+		s.mu.Unlock()
 	}
 }
