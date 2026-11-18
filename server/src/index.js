@@ -22,6 +22,8 @@
 // ID biçimi: 9 haneli sayı (rastgele) ya da kullanıcının seçtiği ad (harfle başlar,
 // küçük harf/rakam/tire, 4-24 karakter; ör. "ofis-pc").
 
+import { ASSETS } from "./assets.js";
+
 const PING_STALE_MS = 100_000; // cihaz 30 sn'de bir ping atar; bu kadar sessizse çevrimdışı say
 const CONNECT_WAIT_MS = 40_000;
 
@@ -153,39 +155,24 @@ export class Hub {
     return json({ error: "ID üretilemedi" }, 503);
   }
 
-  // Tarayıcıdan bağlanma: https://<hub>/c/<id> sayfası karşı cihazdan tünel açmasını ister,
-  // tünel adresi erişilebilir olunca oraya yönlendirir. Şifre tünel sayfasında sorulur.
+  // Tarayıcıdan bağlanma: https://<hub>/c/<id> izleme sayfasının kendisini sunar (uygulamadaki
+  // izleme penceresiyle aynı dosyalar, build-assets.mjs ile paketlenir). Sayfa şifreyi sorar ve
+  // önce doğrudan (WebRTC, el sıkışma /signal) bağlanır; olmazsa cihazdan tünel ister (/connect).
+  // Şifre ve görüntü bu sunucudan geçmez.
   browserPage(url) {
-    const id = decodeURIComponent(url.pathname.slice(3)).replace(/\s+/g, "").toLowerCase();
+    const rest = decodeURIComponent(url.pathname.slice(3));
+    const asset = ASSETS[rest];
+    const headers = { "Cache-Control": "no-cache", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" };
+    if (asset && rest !== "view.html") {
+      const body = asset.b64 ? Uint8Array.from(atob(asset.body), (c) => c.charCodeAt(0)) : asset.body;
+      return new Response(body, { headers: { ...headers, "Content-Type": asset.type } });
+    }
+    const id = rest.replace(/\s+/g, "").toLowerCase();
     if (!validId(id)) return new Response("Geçersiz ID", { status: 404 });
-    const html = `<!doctype html><html lang="tr"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>Meetdesk · ${id}</title>
-<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111113;color:#b0b4ba;font:15px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;padding:24px}
-.t{font-size:18px;font-weight:600;color:#edeef0;margin-bottom:8px}.e{color:#ff6369}
-.s{width:22px;height:22px;border:2px solid #2e3135;border-top-color:#edeef0;border-radius:50%;margin:0 auto 16px;animation:r 1s linear infinite}
-@keyframes r{to{transform:rotate(360deg)}}</style>
-<body><div><div class="s" id="sp"></div><div class="t">Meetdesk</div><div id="m">${id} cihazına ulaşılıyor…</div></div>
-<script>
-const id=${JSON.stringify(id)};const m=document.getElementById('m');
-function fail(t){document.getElementById('sp').remove();m.className='e';m.textContent=t;}
-(async()=>{
-  let r;
-  try{r=await fetch('/connect',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})});}
-  catch{return fail('Sunucuya ulaşılamadı.');}
-  const j=await r.json().catch(()=>({}));
-  if(!r.ok||!j.url)return fail(j.error||'Bağlanılamadı.');
-  m.textContent='Bağlantı hazırlanıyor…';
-  // Yeni tünelin adresi birkaç saniye içinde erişilebilir olur.
-  for(let i=0;i<30;i++){
-    try{await fetch(j.url+'/style.css',{mode:'no-cors',cache:'no-store'});location.replace(j.url+'/');return;}
-    catch{await new Promise(s=>setTimeout(s,1000));}
-  }
-  fail('Karşı cihazın bağlantısı zamanında hazır olmadı. Sayfayı yenileyip tekrar dene.');
-})();
-</script>`;
-    return new Response(html, {
-      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer" },
-    });
+    // ID doğrulandı (yalnızca rakam, küçük harf, tire): sayfaya güvenle yazılabilir.
+    const html = ASSETS["view.html"].body.replace("<head>", `<head>
+  <script>window.__MEETDESK_HUB_ID = ${JSON.stringify(id)};</script>`);
+    return new Response(html, { headers: { ...headers, "Content-Type": "text/html; charset=utf-8" } });
   }
 
   // signal: WebRTC el sıkışması. Teklif cihaza iletilir, cihazın yanıtı döner. Bağlantı
@@ -195,19 +182,25 @@ function fail(t){document.getElementById('sp').remove();m.className='e';m.textCo
     const body = await req.json().catch(() => null);
     const id = body && body.id;
     const sdp = body && body.sdp;
+    const web = !!(body && body.web); // tarayıcıdan (sunucunun /c/ sayfası); cihaz izin vermeyebilir
     if (!validId(id) || typeof sdp !== "string" || sdp.length > 16000) return json({ error: "Geçersiz istek." }, 400);
     if (this.limited("cn:" + ip, 20, 60_000) || this.limited("ct:" + id, 30, 60_000)) {
       return json({ error: "Çok fazla deneme. Biraz sonra tekrar dene." }, 429);
     }
     const ws = this.online(id);
     if (!ws) return json({ error: "Bu cihaz çevrimdışı ya da ID yanlış." }, 404);
+    // Eski sürümler tarayıcıdan gelen isteği ayırt edemez ("tarayıcıdan erişim" ayarını
+    // uygulayamaz): onlara tarayıcıdan doğrudan bağlantı açılmaz, sayfa tünel yoluna geçer.
+    if (web && !((ws.deserializeAttachment() || {}).caps || []).includes("web-signal")) {
+      return json({ error: "Bu cihaz eski sürüm; alternatif yol kullanılacak.", fallback: true }, 409);
+    }
     const reqNo = "s" + String(++this.seq) + "-" + Date.now();
     const answer = new Promise((resolve) => {
       this.pending.set(reqNo, resolve);
       setTimeout(() => resolve(null), 15_000);
     });
     try {
-      ws.send(JSON.stringify({ t: "signal", req: reqNo, sdp }));
+      ws.send(JSON.stringify({ t: "signal", req: reqNo, sdp, web }));
     } catch {
       this.pending.delete(reqNo);
       return json({ error: "Bu cihaz çevrimdışı." }, 404);
@@ -215,6 +208,7 @@ function fail(t){document.getElementById('sp').remove();m.className='e';m.textCo
     const m = await answer;
     this.pending.delete(reqNo);
     if (!m) return json({ error: "Karşı cihaz yanıt vermedi." }, 504);
+    if (m.denied) return json({ error: m.err || "Karşı cihaz bağlantıyı kabul etmiyor." }, 403);
     if (m.err || typeof m.sdp !== "string") return json({ error: m.err || "Doğrudan bağlantı kurulamadı." }, 502);
     return json({ sdp: m.sdp });
   }
@@ -505,6 +499,7 @@ function fail(t){document.getElementById('sp').remove();m.className='e';m.textCo
         if (m.t === "hello") {
           att.avail = !!m.avail;
           att.label = cleanText(m.label, 40);
+          att.caps = Array.isArray(m.caps) ? m.caps.filter((c) => typeof c === "string").slice(0, 16) : [];
         }
         if (m.t === "avail") att.avail = !!m.on;
         if (m.t === "hello" || m.t === "watch") att.watch = cleanIds(m.t === "hello" ? m.watch : m.ids);

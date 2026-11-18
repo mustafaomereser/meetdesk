@@ -5,3 +5,4 @@ node_modules/
 
 # Buluşma sunucusunun adresi: yalnızca yerelde, derlemede exe içine eklenir (repoya girmez)
 .hubserver
+server/src/assets.js

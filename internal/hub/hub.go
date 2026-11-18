@@ -174,7 +174,8 @@ type Client struct {
 	// OnPresence, izlenen cihazların çevrimiçi durumu değişince (ve ilk bağlanışta) çağrılır.
 	OnPresence func(map[string]bool)
 	// OnSignal, biri WebRTC ile doğrudan bağlanmak istediğinde teklifi verir; yanıtı dönmelidir.
-	OnSignal func(offer string) (string, error)
+	// web: istek tarayıcıdan (sunucunun /c/ sayfası) geldi. Kesin ret için Denied döndürülür.
+	OnSignal func(offer string, web bool) (string, error)
 	// Label, takım üyelerine görünen cihaz adıdır (her bağlanışta gönderilir).
 	Label func() string
 	// OnTeams, üyesi olunan takımların listesi değişince (ve ilk bağlanışta) çağrılır.
@@ -304,7 +305,9 @@ func (c *Client) session(ctx context.Context) error {
 		}
 		c.mu.Unlock()
 	}()
-	hello := map[string]any{"t": "hello", "avail": false, "watch": []string{}}
+	// caps: bu sürümün desteklediği özellikler. "web-signal": tarayıcıdan gelen doğrudan bağlantı
+	// isteğinde "tarayıcıdan erişim" ayarını uygular (eski sürümlere sunucu bu yolu açmaz).
+	hello := map[string]any{"t": "hello", "avail": false, "watch": []string{}, "caps": []string{"web-signal"}}
 	if c.Label != nil {
 		hello["label"] = c.Label()
 	}
@@ -372,6 +375,7 @@ func (c *Client) session(ctx context.Context) error {
 			Req  string          `json:"req"`
 			S    map[string]bool `json:"s"`
 			SDP  string          `json:"sdp"`
+			Web  bool            `json:"web"`
 			Err  string          `json:"err"`
 			List []Team          `json:"list"`
 		}
@@ -403,17 +407,21 @@ func (c *Client) session(ctx context.Context) error {
 			continue
 		}
 		if m.T == "signal" && m.Req != "" {
-			go func(req, offer string) {
-				reply := map[string]string{"t": "signal-answer", "req": req}
+			go func(req, offer string, web bool) {
+				reply := map[string]any{"t": "signal-answer", "req": req}
 				if c.OnSignal == nil {
 					reply["err"] = "Doğrudan bağlantı desteklenmiyor."
-				} else if ans, err := c.OnSignal(offer); err != nil {
+				} else if ans, err := c.OnSignal(offer, web); err != nil {
 					reply["err"] = err.Error()
+					var d Denied
+					if errors.As(err, &d) {
+						reply["denied"] = true // tarayıcı tünel yoluna geçmesin
+					}
 				} else {
 					reply["sdp"] = ans
 				}
 				c.Send(reply)
-			}(m.Req, m.SDP)
+			}(m.Req, m.SDP, m.Web)
 			continue
 		}
 		if m.T != "open" || m.Req == "" {
@@ -446,3 +454,9 @@ func Signal(ctx context.Context, server, id, offer string) (string, error) {
 	}
 	return out.SDP, nil
 }
+
+// Denied, bağlantı isteğinin bilerek reddedildiğini belirtir (ör. bağlantılara kapalı,
+// tarayıcıdan erişim kapalı). Ağ hatasından farkı: başka bir yoldan denemek anlamsızdır.
+type Denied string
+
+func (d Denied) Error() string { return string(d) }

@@ -46,9 +46,14 @@ function takeConnection() {
   return null;
 }
 
-// webMode: sayfa tünel adresinde tarayıcıyla açıldı (uygulama değil). Bu durumda şifre
-// sorulur ve aynı adrese bağlanılır; yerel uygulama API'si (pano, olaylar) yoktur.
-const webMode = location.pathname === '/';
+// webMode: sayfa uygulama olmadan, tarayıcıyla açıldı. Bu durumda şifre sorulur; yerel
+// uygulama API'si (pano, olaylar) yoktur. İki yol var:
+//   - hubMode: sayfa buluşma sunucusundan geldi (https://<sunucu>/c/<ID>). Bağlantı önce
+//     doğrudan (WebRTC, el sıkışma sunucunun /signal ucu), olmazsa cihazın tüneli üzerinden.
+//   - tünel adresi doğrudan açıldı ("/"): aynı adrese WebSocket.
+const hubID = window.__MEETDESK_HUB_ID || '';
+const hubMode = !!hubID;
+const webMode = location.pathname === '/' || hubMode;
 if (webMode) document.body.classList.add('web');
 
 (async () => {
@@ -86,7 +91,8 @@ $('webLogin').onsubmit = (e) => {
   document.body.classList.remove('login');
   failed = false;
   everConnected = false;
-  connect({ id: location.origin, pw: $('wlPw').value, name, label: location.host.replace('.trycloudflare.com', '') });
+  if (hubMode) connect({ id: hubID, pw: $('wlPw').value, name, label: /^\d{9}$/.test(hubID) ? hubID.replace(/(\d{3})(?=\d)/g, '$1 ') : hubID });
+  else connect({ id: location.origin, pw: $('wlPw').value, name, label: location.host.replace('.trycloudflare.com', '') });
   $('wlPw').value = '';
 };
 
@@ -108,14 +114,35 @@ async function connect({ id, pw, name, label }) {
   if (window.rdSetTitle) window.rdSetTitle(document.title);
   $('vTitle').textContent = label;
 
-  if (!webMode) {
+  if (!webMode || hubMode) {
     showOverlay('Bağlanıyor…');
     const direct = await tryDirect(id);
+    if (direct && direct.refused) {
+      // Karşı cihaz açıkça reddetti (çevrimdışı, tarayıcıdan erişim kapalı): tünel denenmez.
+      failed = true;
+      if (hubMode) showWebLogin(direct.refused); else showOverlay(direct.refused, true);
+      return;
+    }
     if (direct) {
       transportKind = 'direct';
       attach(direct, pw, name, null);
       return;
     }
+  }
+  if (hubMode) {
+    // Doğrudan bağlantı kurulamadı (ağ engeli): cihazın tüneli üzerinden.
+    transportKind = 'tunnel';
+    showOverlay('Doğrudan bağlantı kurulamadı, alternatif yol hazırlanıyor…');
+    try {
+      const r = await fetch('/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.url) throw new Error(j.error || 'Bağlanılamadı.');
+      openSocket(j.url, pw, name, 15); // yeni tünelin adresi birkaç saniye içinde erişilebilir olur
+    } catch (e) {
+      failed = true;
+      showWebLogin(e.message || 'Bağlanılamadı.');
+    }
+    return;
   }
 
   transportKind = 'tunnel';
@@ -243,6 +270,7 @@ function waitFor(cond, ms) {
 async function tryDirect(id) {
   if (typeof RTCPeerConnection === 'undefined') return null;
   let pc = null;
+  let refused = '';
   const attempt = (async () => {
     pc = new RTCPeerConnection({ iceServers: ICE });
     const ctl = pc.createDataChannel('ctl');
@@ -251,12 +279,20 @@ async function tryDirect(id) {
     await pc.setLocalDescription(await pc.createOffer());
     // Adaylar teklife girsin: el sıkışma tek gidiş-dönüş.
     await waitFor(() => pc.iceGatheringState === 'complete', 2500);
-    const r = await fetch('/api/rtc/connect', {
+    // Uygulamada yerel API, tarayıcıda (hubMode) buluşma sunucusu el sıkışmayı iletir.
+    const r = await fetch(hubMode ? '/signal' : '/api/rtc/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, sdp: pc.localDescription.sdp }),
+      body: JSON.stringify(hubMode ? { id, sdp: pc.localDescription.sdp, web: true } : { id, sdp: pc.localDescription.sdp }),
     });
-    if (!r.ok) throw new Error((await r.text()).trim());
+    if (!r.ok) {
+      const t = (await r.text()).trim();
+      let msg = t;
+      try { msg = JSON.parse(t).error || t; } catch {}
+      // Çevrimdışı / ID yanlış / tarayıcıdan erişim kapalı / çok fazla deneme: tünel de işe yaramaz.
+      if (hubMode && (r.status === 404 || r.status === 429 || r.status === 403)) refused = msg;
+      throw new Error(msg);
+    }
     const { sdp } = await r.json();
     await pc.setRemoteDescription({ type: 'answer', sdp });
     const ok = await waitFor(() => ctl.readyState === 'open' && media.readyState === 'open', 8000);
@@ -268,7 +304,7 @@ async function tryDirect(id) {
   } catch (e) {
     console.log('doğrudan bağlantı yok, tünel kullanılacak:', e && e.message);
     if (pc) try { pc.close(); } catch {}
-    return null;
+    return refused ? { refused } : null;
   }
 }
 

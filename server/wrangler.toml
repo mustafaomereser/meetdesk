@@ -9,3 +9,7 @@ class_name = "Hub"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Hub"]
+
+[build]
+command = "node build-assets.mjs"
+watch_dir = "../web"

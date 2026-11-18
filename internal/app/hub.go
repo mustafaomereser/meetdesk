@@ -90,9 +90,12 @@ func (a *App) hubLoop(ctx context.Context) {
 				Label:      deviceLabel,
 				OnTeams:    a.setTeams,
 				OnPresence: a.peers.setPresence,
-				OnSignal: func(offer string) (string, error) {
+				OnSignal: func(offer string, web bool) (string, error) {
 					if !a.isOnline() {
-						return "", errors.New("Karşı cihaz bağlantılara kapalı.")
+						return "", hub.Denied("Karşı cihaz bağlantılara kapalı.")
+					}
+					if web && !a.browserAllowed() {
+						return "", hub.Denied("Bu bilgisayara tarayıcıdan bağlanılamıyor (ayarlarda kapalı). Meetdesk uygulamasıyla bağlanın.")
 					}
 					return a.host.HandleOffer(offer)
 				},
