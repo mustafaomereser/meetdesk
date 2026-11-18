@@ -26,4 +26,4 @@ var HubServer = ""
 // UpdateRepo, güncellemelerin denetlendiği GitHub deposudur ("sahip/ad").
 // Uygulama açılınca ve 6 saatte bir son sürüme bakar; yeni sürüm varsa arayüzde
 // "Güncelle" düğmesi çıkar. Boş bırakılırsa güncelleme denetimi kapalıdır.
-const UpdateRepo = "mustafaomereser/remotedesk"
+const UpdateRepo = "mustafaomereser/meetdesk"

@@ -23,7 +23,7 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
 
 - **Bağlanmak:** Karşı tarafın ID'sini gir. Şifreyi biliyorsan doğrudan bağlanırsın. Şifre alanını boş bırakırsan karşı tarafa bir **bağlantı isteği** gider; onaylarsa bağlanırsın.
 - **Gözetimsiz erişim:** Ayarlar > Sabit şifre. Bu şifreyle gelen kişi onay beklemeden bağlanır. Şifrenin kendisi saklanmaz, yalnızca PBKDF2 özeti tutulur.
-- **Tarayıcıdan erişim** (isteğe bağlı, Ayarlar > Erişim): Bağlantı adresi telefon ya da başka bir bilgisayarın tarayıcısında açılabilir. Şifre sorulur; telefonda dokunmatik kontrol ve telefon klavyesi çalışır.
+- **Tarayıcıdan erişim** (isteğe bağlı, Ayarlar > Erişim): Bağlantı adresi telefon ya da başka bir bilgisayarın tarayıcısında açılabilir. Şifre sorulur; telefonda dokunmatik kontrol ve telefon klavyesi çalışır. Tarayıcı da uygulama gibi doğrudan (WebRTC) bağlanır, genelde bir saniye içinde; olmazsa aynı sayfada tünele geçer. Cihaz kapalıysa ya da tarayıcıdan erişim kapalıysa bu hemen söylenir.
 
 ## Özellikler
 
@@ -60,6 +60,11 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
 - **Gizlilik modu:**
   - Bağlanılan bilgisayarın ekranı kararır; bağlananlar görmeye ve çalışmaya devam eder.
   - Bilgisayarın başındaki kişi Ctrl+Alt+Shift+P ile kapatır.
+- **Bağlananlardan gizle** (Windows):
+  - Seçilen pencereler bağlananlara giden görüntüde çizgili koyu bir alanla karartılır; bilgisayarın başındaki kişi normal görür. Ör. toplantı sırasında WhatsApp'ta gezinirken.
+  - Bir programın tümü, tek bir pencere (ör. Chrome'da açılan "WhatsApp Web") ya da başlığında bir kelime geçen bütün pencereler gizlenebilir.
+  - Programın menüleri ve açılır pencereleri de gizlenir. Üstüne başka bir pencere gelirse o kısım normal görünür.
+  - Toplantı > Araçlar > Pencere gizle ya da Ayarlar > Bağlananlardan gizlenenler. Liste kalıcıdır.
 - **Dosya aktarımı:**
   - İki yönlü, sürükle-bırakla.
   - Alınan dosyalar İndirilenler/Meetdesk klasörüne kaydedilir.
@@ -67,7 +72,7 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
 - **Sesli görüşme:**
   - WebRTC ile, mikrofon izni ister.
   - Toplantıda bağlanılan bilgisayar herkesin sesini birleştirir, herkes herkesi duyar.
-- **Oturum paneli:** Windows'ta biri bağlanınca ekranın sağ altında küçük bir panel açılır: bağlı olanlar, sohbet ve araçlar.
+- **Oturum paneli:** Windows'ta biri bağlanınca ekranın sağ altında küçük bir panel açılır. Kişiler, Sohbet ve Araçlar sekmeleri vardır; okunmamış mesaj sayısı sekmede görünür. Saatin yanındaki simgeye tıklayınca açılır ve kapanır.
 
 ### Görüntü
 - **Ekran yakalama:**
@@ -136,7 +141,7 @@ Yerel arayüz (127.0.0.1, çerez anahtarlı) tünele ASLA açılmaz.
 | Paket | İçerik |
 |---|---|
 | `internal/host` | Oturumlar (bağlantı türünden bağımsız `Conn`), şifre ve onay, çok kişili oturum, çizim, akış kontrolü, WebRTC |
-| `internal/capture` | DXGI / GDI / CGDisplayStream yakalama |
+| `internal/capture` | DXGI / GDI / CGDisplayStream yakalama, gizlenen pencerelerin karartılması |
 | `internal/input` | `SendInput` / CGEvent; klavye scancode ile, telefon metni Unicode olarak |
 | `internal/desktop` | Ad etiketi ve çizim katmanı (saydam, tıklamayı geçiren pencereler), WebView |
 | `internal/hub` | Buluşma sunucusu istemcisi (tek kalıcı bağlantı, takım işlemleri) |
@@ -147,8 +152,9 @@ Yerel arayüz (127.0.0.1, çerez anahtarlı) tünele ASLA açılmaz.
 ## Bilinen sınırlar
 
 - Kilit ekranı ve Ctrl+Alt+Del: servis (SYSTEM) olarak çalışmak gerekir; şimdilik yok.
-- Dosya transferi yok; pano yalnızca düz metin.
-- macOS'ta bağlanılan bilgisayarın ekranında çizim katmanı ve yazı alanı algılama henüz yok. Çizimler izleyicilerde görünür.
+- Pano yalnızca düz metin.
+- macOS'ta bağlanılan bilgisayarın ekranında çizim katmanı, işaret, gizlilik modu, bağlananlardan gizleme, oturum paneli ve yazı alanı algılama henüz yok. Çizimler izleyicilerde görünür.
+- Bağlananlardan gizleme pencere alanına göre çalışır: Windows'un kendi bildirimleri (ör. WhatsApp mesaj bildirimi) gizlenmez. Tarayıcıda "başlığında şu geçen" kuralı o sekme açıkken bütün pencereyi karartır.
 - Doğrudan bağlantı STUN ile kurulur; simetrik NAT gibi zor ağlarda tünel kullanılır (TURN yok).
 
 ## Derleme
