@@ -1,11 +1,9 @@
 package host
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -16,7 +14,6 @@ import (
 	"remotedesk/internal/desktop"
 	"remotedesk/internal/input"
 	"remotedesk/internal/sysutil"
-	"remotedesk/internal/video"
 )
 
 const (
@@ -65,10 +62,6 @@ type session struct {
 	lastRoute  int
 	remotePos  atomic.Uint64 // uzaktaki kişinin son imleç konumu (x<<32 | y), 0 = yok
 	remoteAt   atomic.Int64  // uzaktaki kişinin faresini en son oynattığı an (unix ns)
-
-	// Uyarlamalı bit hızı (H.264): bağlantı taşıyamıyorsa düşer, rahatsa kalite sınırına çıkar.
-	abrRate   int
-	abrUpNeed int // yükseltmeden önce gereken art arda "rahat" onay sayısı
 
 	quality     atomic.Int32
 	wantDisplay atomic.Int32 // -1: değişiklik yok
@@ -603,6 +596,11 @@ type grabbed struct {
 // her zaman en yeni kare verilir. Kullanılan kare free'ye geri konmalıdır.
 // stop çağrıldığında goroutine'in bitmesi beklenir (Capturer'ı tek goroutine kullanır).
 func (s *session) startGrabber(ctx context.Context, d capture.Display) (frames <-chan *grabbed, free chan<- *grabbed, stop func()) {
+	return startGrabber(ctx, func() (*capture.Frame, time.Duration, error) { return s.grab(d) })
+}
+
+// startGrabber, grab'ı ayrı bir goroutine'de maxFPS hızında çağırır (bkz. session.startGrabber).
+func startGrabber(ctx context.Context, grab func() (*capture.Frame, time.Duration, error)) (frames <-chan *grabbed, free chan<- *grabbed, stop func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	out := make(chan *grabbed, 1)
 	pool := make(chan *grabbed, 3)
@@ -621,7 +619,7 @@ func (s *session) startGrabber(ctx context.Context, d capture.Display) (frames <
 				return
 			case g = <-pool:
 			}
-			f, dur, err := s.grab(d)
+			f, dur, err := grab()
 			g.dur, g.err = dur, err
 			if err == nil {
 				row := f.W * 4
@@ -777,164 +775,98 @@ func fitEven(w, h, maxW int) (int, int) {
 	return w &^ 1, h &^ 1
 }
 
-// h264Loop, ekranı ffmpeg ile H.264'e kodlar. Ekran değiştiğinde (ve ardından kaliteyi
-// iyileştirmek için birkaç kare daha) kare gönderilir; ekran durağanken trafik olmaz.
-// Akış kontrolü: viewer'ın çözmediği kare sayısı RTT'ye göre sınırlanır (flow).
+// h264Loop, monitörün paylaşılan H.264 kodlayıcısına bağlanır (bkz. videohub.go) ve gelen
+// kareleri bu izleyiciye gönderir. Akış kontrolü: izleyicinin çözmediği kare sayısı RTT'ye
+// göre sınırlanır (flow); pencere doluyken gelen ara kare atlanır ve anahtar kare beklenir.
 func (s *session) h264Loop(ctx context.Context) error {
 	bin, enc, ok := s.videoReady()
 	if !ok {
 		return errVideoFailed
 	}
-	f, err := s.captureRetry(ctx)
-	if err != nil {
-		return err
-	}
 	d := s.displays[s.cur]
-	inW, inH := f.W, f.H
-	outW, outH := fitEven(inW, inH, maxVideoWidth)
 	q := s.quality.Load()
-
-	ectx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	maxRate := video.BitrateFor(int(q))
-	if s.abrRate == 0 {
-		s.abrRate, s.abrUpNeed = min(maxRate, 6_000_000), 300
-	}
-	s.abrRate = min(s.abrRate, maxRate)
-	rate := s.abrRate
-	e, err := video.Start(ectx, bin, enc, inW, inH, outW, outH, maxFPS, rate)
-	if err != nil {
-		return fmt.Errorf("%w: %v", errVideoFailed, err)
-	}
-	defer e.Close()
-
-	s.setMapping(d, outW, outH)
-	if err := s.c.WriteJSON(ctx, map[string]any{"t": "init", "w": outW, "h": outH}); err != nil {
-		return err
-	}
+	hub, sub := s.srv.videoSub(hubKey{d: d, q: q}, bin, enc)
+	defer hub.unsubscribe(sub)
 	s.keyframe.Store(false)
 	clearChan(s.vack)
 
-	// ffmpeg çıktısı -> websocket
-	sendErr := make(chan error, 1)
-	go func() {
-		got := 0
-		for fr := range e.Frames() {
-			got++
-			msg := make([]byte, 2+len(fr.Data))
-			msg[0] = msgVideo
-			if fr.Key {
-				msg[1] = 1
-			}
-			copy(msg[2:], fr.Data)
-			if err := s.c.WriteBinary(ectx, msg); err != nil {
-				sendErr <- err
-				return
-			}
-		}
-		if ectx.Err() != nil {
-			sendErr <- ectx.Err()
-		} else if got == 0 {
-			sendErr <- fmt.Errorf("%w: %s", errVideoFailed, e.ErrText())
-		} else {
-			sendErr <- fmt.Errorf("%w: %s", errEncoderDied, e.ErrText())
-		}
-	}()
-
 	fl := newFlow(maxFPS)
 	var pf perf
-	prev := make([]byte, len(f.Pix))
-	copy(prev, f.Pix)
-	if err := e.WriteFrame(f); err != nil {
-		return fmt.Errorf("%w: %v", errVideoFailed, err)
-	}
-	fl.onSend()
-	refine := refineFrames
-	frames, free, stop := s.startGrabber(ctx, d)
-	defer stop()
+	gen, w, h, rate := 0, 0, 0, 0
+	waitKey := true
+	tick := time.NewTicker(100 * time.Millisecond)
+	defer tick.Stop()
 
-	writeFailed := func() error {
-		select {
-		case err := <-sendErr:
-			return err
-		case <-time.After(time.Second):
-			return errEncoderDied
+	publish := func() {
+		sub.full.Store(fl.full())
+		sub.good.Store(int64(fl.goodRun))
+		if fl.badRun >= 30 {
+			sub.bad.Store(true)
+			fl.badRun = 0
 		}
+		hub.poke()
 	}
 
 	for {
-		drainAcks(s.vack, fl)
-		select {
-		case err := <-sendErr:
-			return err
-		default:
-		}
-		if restart, err := s.applyRequests(ctx); err != nil {
-			return err
-		} else if restart || s.keyframe.Load() || s.quality.Load() != q {
-			return errRestart
-		}
-		// Bağlantıya göre bit hızı: onaylar gecikiyorsa (kuyruk büyüyor) bir basamak in,
-		// uzun süre rahatsa bir basamak çık. Her inişte çıkış için gereken süre iki katına çıkar.
-		if fl.badRun >= 30 {
-			if lower := video.StepRate(rate, -1); lower < rate {
-				s.abrRate, s.abrUpNeed = lower, min(s.abrUpNeed*2, 9600)
-				log.Printf("bit hızı düşürüldü: %.1f Mbps (gecikme %v, taban %v)", float64(lower)/1e6, fl.rtt.Round(time.Millisecond), fl.floor.Round(time.Millisecond))
-				return errRestart
-			}
-			fl.badRun = 0
-		} else if fl.goodRun >= s.abrUpNeed && rate < maxRate {
-			s.abrRate = min(video.StepRate(rate, +1), maxRate)
-			log.Printf("bit hızı yükseltildi: %.1f Mbps", float64(s.abrRate)/1e6)
-			return errRestart
-		}
-		if err := s.waitWindow(ctx, fl, s.vack, sendErr); err != nil {
-			return err
-		}
-		if fl.full() {
-			continue // poke ile uyandık; istekleri yukarıda işle
-		}
-
-		var g *grabbed
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-sendErr:
+		case err := <-sub.err:
 			return err
 		case <-s.poke:
-			continue
-		case g = <-frames:
-		}
-		if g.err != nil {
-			log.Printf("yakalama hatası: %v", g.err)
-			free <- g
-			continue
-		}
-		pf.capture(g.dur)
-		f := &g.f
-		if f.W != inW || f.H != inH {
-			free <- g
-			return errRestart
-		}
-		pf.report(ctx, s.c, fl, outW, outH, rate)
-		send := true
-		if !bytes.Equal(f.Pix, prev) {
-			copy(prev, f.Pix)
-			refine = refineFrames
-		} else if refine > 0 {
-			refine--
-		} else {
-			send = false // ekran durağan: trafik yok
-		}
-		if send {
-			if err := e.WriteFrame(f); err != nil {
-				free <- g
-				return writeFailed()
+		case <-tick.C:
+		case <-s.vack:
+			fl.onAck()
+			drainAcks(s.vack, fl)
+		case hf := <-sub.ch:
+			if hf.gen != gen {
+				// Yeni kodlayıcı (bit hızı, anahtar kare, çözünürlük): gecikme tabanı yeniden ölçülür.
+				gen, rate = hf.gen, hf.rate
+				fl = newFlow(maxFPS)
+				if hf.w != w || hf.h != h {
+					w, h = hf.w, hf.h
+					s.setMapping(d, w, h)
+					if err := s.c.WriteJSON(ctx, map[string]any{"t": "init", "w": w, "h": h}); err != nil {
+						return err
+					}
+				}
+			}
+			if hf.f.Key {
+				waitKey = false
+			} else if waitKey {
+				break
+			}
+			if fl.full() && !hf.f.Key {
+				// Bu izleyici yetişemiyor: ara kare atlanırsa sonrakiler çözülemez, anahtar kare bekle.
+				waitKey = true
+				hub.requestKey()
+				break
+			}
+			msg := make([]byte, 2+len(hf.f.Data))
+			msg[0] = msgVideo
+			if hf.f.Key {
+				msg[1] = 1
+			}
+			copy(msg[2:], hf.f.Data)
+			if err := s.c.WriteBinary(ctx, msg); err != nil {
+				return err
 			}
 			fl.onSend()
 			pf.frame()
 		}
-		free <- g
+		publish()
+		if restart, err := s.applyRequests(ctx); err != nil {
+			return err
+		} else if restart || s.quality.Load() != q {
+			return errRestart
+		}
+		if s.keyframe.Swap(false) {
+			waitKey = true // izleyici çözücüsünü kaybetti
+			hub.requestKey()
+		}
+		if w > 0 {
+			pf.report(ctx, s.c, fl, w, h, rate)
+		}
 	}
 }
 

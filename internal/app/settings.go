@@ -78,13 +78,13 @@ func (a *App) syncStateLocked() {
 	a.applyHiddenLocked()
 }
 
-const defaultMaxViewers = 5
+const defaultMaxViewers = 10
 
 func (a *App) maxViewersLocked() int {
 	if a.set.MaxViewers <= 0 {
 		return defaultMaxViewers
 	}
-	return min(a.set.MaxViewers, 10)
+	return min(a.set.MaxViewers, 30)
 }
 
 func (a *App) maxViewers() int {
@@ -202,7 +202,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	set(&a.set.AllowFiles, body.AllowFiles)
 	set(&a.set.QuitOnClose, body.QuitOnClose)
 	if body.MaxViewers != nil {
-		a.set.MaxViewers = min(max(*body.MaxViewers, 1), 10)
+		a.set.MaxViewers = min(max(*body.MaxViewers, 1), 30)
 	}
 	a.saveSettingsLocked()
 	a.syncStateLocked()

@@ -21,6 +21,10 @@ import (
 )
 
 type Server struct {
+	// Paylaşılan H.264 kodlayıcılar (monitör + kalite başına bir tane), bkz. videohub.go.
+	vhubMu sync.Mutex
+	vhubs  map[hubKey]*videoHub
+
 	// Auth şifreyi doğrular. unattended=true ise sabit (gözetimsiz erişim) şifresiyle
 	// gelinmiştir: bağlantı onay sorulmadan kabul edilir.
 	Auth func(pw string) (ok, unattended bool)
@@ -577,7 +581,7 @@ func (s *Server) maxViewers() int {
 	if s.MaxViewers == nil {
 		return 1
 	}
-	return min(max(s.MaxViewers(), 1), 16)
+	return min(max(s.MaxViewers(), 1), 30)
 }
 
 // claim, yeni bir kişi için yer ayırır; yer yoksa full=true.

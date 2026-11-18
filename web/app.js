@@ -518,7 +518,7 @@ $('maxViewers').onchange = (e) => api('settings', { maxViewers: +e.target.value 
 $('closeMode').onchange = (e) => api('settings', { quitOnClose: e.target.value === 'quit' }).catch((err) => toast(err.message));
 
 function renderSettings(s) {
-  if (document.activeElement !== $('maxViewers')) $('maxViewers').value = String(s.maxViewers || 5);
+  if (document.activeElement !== $('maxViewers')) $('maxViewers').value = String(s.maxViewers || 10);
   $('closeRow').classList.toggle('hidden', !s.tray);
   if (document.activeElement !== $('closeMode')) $('closeMode').value = s.quitOnClose ? 'quit' : 'bg';
   for (const k of SWITCHES) {

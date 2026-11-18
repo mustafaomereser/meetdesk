@@ -42,7 +42,8 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
 
 ### Toplantı ve sunum
 - **Çok kişili bağlantı:**
-  - Aynı bilgisayara birden fazla kişi aynı anda bağlanabilir; kişi sayısı Ayarlar'dan seçilir.
+  - Aynı bilgisayara birden fazla kişi aynı anda bağlanabilir (varsayılan 10, en fazla 30; Ayarlar'dan seçilir).
+  - Aynı monitörü izleyenler için ekran bir kez yakalanıp bir kez sıkıştırılır (tek ffmpeg), görüntü herkese dağıtılır. Bağlantısı yavaş olan kişi diğerlerini yavaşlatmaz: o kişi kare atlayıp bir sonraki anahtar kareden devam eder.
   - Her kişiye bir renk atanır.
   - Toplantı sayfasında bağlı olanlar listelenir; fare/klavye izni kişi başına kapatılabilir, her kişi ayrı ayrı çıkarılabilir.
 - **Sohbet:**
