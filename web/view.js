@@ -338,8 +338,11 @@ function onMessage(ev) {
         showOverlay('Bağlantı isteği gönderildi. Karşı tarafın kabul etmesi bekleniyor…');
         break;
       case 'init':
-        canvas.width = m.w;
-        canvas.height = m.h;
+        // Boyut aynıysa tuvale dokunma: width/height atamak tuvali siler. Karşı taraf kodlayıcıyı
+        // yeniden başlattığında (bit hızı değişimi, anahtar kare isteği) yeni kare gelene kadar
+        // ekran kararmasın, son görüntü kalsın.
+        if (canvas.width !== m.w) canvas.width = m.w;
+        if (canvas.height !== m.h) canvas.height = m.h;
         connected = everConnected = true;
         overlay.classList.add('hidden');
         canvas.focus();

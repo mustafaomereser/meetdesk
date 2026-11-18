@@ -56,38 +56,70 @@ func focusNativeMain() bool {
 	return true
 }
 
-// openPanel, ekranın sağ altında küçük oturum panelini açar (zaten açıksa dokunmaz).
+// Panel açılırken (WebView kurulumu birkaç yüz ms sürer) gelen ikinci "aç" isteği yeni bir
+// panel açmasın: açılma süreci de "açık" sayılır. Açılırken gelen "kapat" isteği, açılınca uygulanır.
+var (
+	panelOpening   bool
+	panelCloseWant bool
+)
+
+// openPanel, ekranın sağ altında küçük oturum panelini açar (açıksa ya da açılıyorsa dokunmaz).
 func openPanel(url, dataDir string) {
 	nativeMu.Lock()
-	open := panelWin != nil
-	nativeMu.Unlock()
-	if open {
+	if panelWin != nil || panelOpening {
+		nativeMu.Unlock()
 		return
 	}
+	panelOpening, panelCloseWant = true, false
+	nativeMu.Unlock()
+
+	var me frame.Window
+	var meMu sync.Mutex
 	w, err := frame.Open(frame.Options{
 		URL: url, Title: AppName + " · Oturum", W: 360, H: 560, MinW: 320, MinH: 420,
 		DataDir: filepath.Join(dataDir, "webview"), Corner: true,
 		OnClose: func() {
+			meMu.Lock()
+			self := me
+			meMu.Unlock()
 			nativeMu.Lock()
-			panelWin = nil
+			if panelWin == self { // kapanan eski bir panelse yenisini unutma
+				panelWin = nil
+			}
 			nativeMu.Unlock()
 		},
 	})
+	nativeMu.Lock()
+	panelOpening = false
+	closeNow := panelCloseWant
+	if err == nil {
+		meMu.Lock()
+		me = w
+		meMu.Unlock()
+		panelWin = w
+	}
+	nativeMu.Unlock()
 	if err != nil {
 		log.Printf("oturum paneli açılamadı: %v", err)
 		return
 	}
-	nativeMu.Lock()
-	panelWin = w
-	nativeMu.Unlock()
 	log.Printf("oturum paneli açıldı")
+	if closeNow {
+		w.Close()
+	}
 }
 
-// focusPanel, paneli öne getirir (yoksa false).
+// focusPanel, paneli öne getirir (yoksa false). Açılmaktaysa true: ayrıca açılmasın.
 func focusPanel() bool {
 	nativeMu.Lock()
-	w := panelWin
+	w, opening := panelWin, panelOpening
+	if opening {
+		panelCloseWant = false
+	}
 	nativeMu.Unlock()
+	if opening {
+		return true
+	}
 	if w == nil {
 		return false
 	}
@@ -98,12 +130,15 @@ func focusPanel() bool {
 func panelOpen() bool {
 	nativeMu.Lock()
 	defer nativeMu.Unlock()
-	return panelWin != nil
+	return panelWin != nil || panelOpening && !panelCloseWant
 }
 
 func closePanel() {
 	nativeMu.Lock()
 	w := panelWin
+	if w == nil && panelOpening {
+		panelCloseWant = true
+	}
 	nativeMu.Unlock()
 	if w != nil {
 		w.Close()

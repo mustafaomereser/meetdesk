@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"remotedesk/internal/capture"
 	"remotedesk/internal/sysutil"
@@ -43,7 +42,7 @@ func Start(ctx context.Context, bin, enc string, inW, inH, outW, outH, fps, bitr
 		"-framerate", strconv.Itoa(fps), "-i", "pipe:0",
 		"-vf", vf, "-c:v", enc}
 	args = append(args, encoderArgs(enc, bitrate)...)
-	args = append(args, "-flush_packets", "1", "-f", "h264", "pipe:1")
+	args = append(args, "-flush_packets", "1", "-flvflags", "no_duration_filesize", "-f", "flv", "pipe:1")
 
 	cmd := exec.CommandContext(ctx, bin, args...)
 	sysutil.HideWindow(cmd)
@@ -139,43 +138,7 @@ func (e *Encoder) parse(r io.Reader) {
 		e.cmd.Wait()
 		e.job.Close()
 	}()
-	chunks := make(chan []byte, 16)
-	go func() {
-		defer close(chunks)
-		buf := make([]byte, 256<<10)
-		for {
-			n, err := r.Read(buf)
-			if n > 0 {
-				c := make([]byte, n)
-				copy(c, buf[:n])
-				select {
-				case chunks <- c:
-				case <-e.done:
-					return
-				}
-			}
-			if err != nil {
-				return
-			}
-		}
-	}()
-
-	var p auParser
-	timer := time.NewTimer(time.Hour)
-	timer.Stop()
-	for {
-		select {
-		case c, ok := <-chunks:
-			if !ok {
-				p.flush(e.emit)
-				return
-			}
-			p.feed(c, e.emit)
-			timer.Reset(4 * time.Millisecond)
-		case <-timer.C:
-			p.flush(e.emit)
-		case <-e.done:
-			return
-		}
+	if err := readFLV(r, e.emit); err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		log.Printf("ffmpeg çıktısı okunamadı: %v", err)
 	}
 }

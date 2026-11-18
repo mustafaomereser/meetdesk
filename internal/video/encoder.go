@@ -24,7 +24,7 @@ func encoderArgs(enc string, bitrate int) []string {
 	case "libx264":
 		a = []string{"-preset", "ultrafast", "-tune", "zerolatency", "-crf", "23", "-maxrate", b, "-bufsize", half}
 	case "h264_nvenc":
-		a = []string{"-preset", "p2", "-tune", "ull", "-zerolatency", "1", "-rc", "vbr", "-cq", "23", "-b:v", b, "-maxrate", b, "-bufsize", half}
+		a = []string{"-preset", "p2", "-tune", "ull", "-zerolatency", "1", "-delay", "0", "-rc", "vbr", "-cq", "23", "-b:v", b, "-maxrate", b, "-bufsize", half}
 	case "h264_qsv":
 		a = []string{"-preset", "veryfast", "-async_depth", "1", "-b:v", b}
 	case "h264_amf":
