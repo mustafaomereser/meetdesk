@@ -222,6 +222,13 @@
                     </span>
                     <input type="checkbox" class="switch" id="privacySw">
                   </label>
+                  <div class="row static hide-only">
+                    <span class="row-text">
+                      <span class="row-title">Pencere gizle</span>
+                      <span class="row-hint" id="hideHint">Seçtiğin programlar bağlananlara karartılmış görünür; sen normal görürsün.</span>
+                    </span>
+                    <button class="small" id="hidePick" type="button">Seç</button>
+                  </div>
                   <div class="row static">
                     <span class="row-text">
                       <span class="row-title">Ekrandaki çizimler</span>
@@ -407,6 +414,15 @@
             </details>
           </section>
 
+          <section class="card hide-only">
+            <div class="card-head">
+              <div><h2>Bağlananlardan gizlenenler</h2><p>Bu programlar ve pencereler bağlananlara giden görüntüde karartılır; bu bilgisayarda normal görünür. Üstüne başka bir pencere gelirse o kısım görünür.</p></div>
+              <button class="small" id="hidePick2" type="button">Seç</button>
+            </div>
+            <div class="rows" id="hideList"></div>
+            <p class="muted small-note hidden" id="hideEmpty">Henüz gizlenen bir şey yok.</p>
+          </section>
+
           <section class="card" id="adminSection">
             <div class="card-head"><div><h2>Yönetici (UAC)</h2></div></div>
             <div class="rows">
@@ -446,6 +462,23 @@
       <div class="dialog-actions">
         <button id="reject">Reddet</button>
         <button id="accept" class="primary">Kabul et</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="hideModal" class="modal hidden">
+    <div class="dialog hide-dialog" role="dialog" aria-labelledby="hideTitle">
+      <h3 id="hideTitle">Bağlananlardan gizle</h3>
+      <p class="muted">Seçtiğin pencereler bağlananlara karartılmış görünür, sen normal görürsün. Tarayıcıda açtığın bir site için başlığında geçen kelimeyi yaz.</p>
+      <form id="hideWordForm" class="hide-word" autocomplete="off">
+        <input id="hideWord" type="text" maxlength="200" placeholder="Başlığında şu geçenler, ör. WhatsApp">
+        <button class="small" type="submit">Ekle</button>
+      </form>
+      <div id="hideWords" class="chips"></div>
+      <div class="rows hide-pick" id="hideApps"></div>
+      <div class="dialog-actions">
+        <button id="hideRefresh" type="button">Yenile</button>
+        <button id="hideDone" class="primary" type="button">Tamam</button>
       </div>
     </div>
   </div>

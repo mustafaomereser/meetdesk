@@ -123,6 +123,9 @@ type State struct {
 	Version    string      `json:"version"`
 	Update     *UpdateInfo `json:"update"`
 	AutoStart  bool        `json:"autoStart"` // bilgisayar açılınca (oturum açılınca) başlar
+
+	HiddenApps    []HiddenApp `json:"hiddenApps"`    // bağlananlara karartılan programlar
+	HideSupported bool        `json:"hideSupported"` // program gizleme bu sistemde var mı
 }
 
 type App struct {
@@ -721,6 +724,8 @@ func (a *App) uiHandler() http.Handler {
 		writeOK(w)
 	})
 	mux.HandleFunc("POST /api/host/privacy", a.handlePrivacy)
+	mux.HandleFunc("GET /api/hide/apps", a.handleHideApps)
+	mux.HandleFunc("POST /api/hide", a.handleHide)
 	mux.HandleFunc("POST /api/files/send", a.handleFileSend)
 	mux.HandleFunc("POST /api/files/save", a.handleFileSave)
 	mux.HandleFunc("POST /api/files/reveal", a.handleFileReveal)

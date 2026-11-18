@@ -31,6 +31,8 @@ type Settings struct {
 	AllowFiles     bool `json:"allowFiles"`     // bağlanan kişi dosya gönderebilir
 	QuitOnClose    bool `json:"quitOnClose"`    // ana pencere kapanınca uygulamadan çık (varsayılan: arka planda çalış)
 
+	HiddenApps []HiddenApp `json:"hiddenApps,omitempty"` // bağlananlara karartılarak gösterilen programlar
+
 	// Sabit şifre (gözetimsiz erişim): yalnızca PBKDF2 özeti saklanır.
 	FixedHash string `json:"fixedHash,omitempty"`
 	FixedSalt string `json:"fixedSalt,omitempty"`
@@ -73,6 +75,7 @@ func (a *App) syncStateLocked() {
 	a.st.AllowFiles = a.set.AllowFiles
 	a.st.QuitOnClose = a.set.QuitOnClose
 	a.st.MaxViewers = a.maxViewersLocked()
+	a.applyHiddenLocked()
 }
 
 const defaultMaxViewers = 5

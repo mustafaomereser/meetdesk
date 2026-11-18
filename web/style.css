@@ -939,3 +939,26 @@ body.panel #chatCard > .card-head, body.panel #toolsCard > .card-head { display:
 body.panel .content, body.panel .card, body.panel .meet-grid .card { overflow-x: hidden; }
 body.panel .person { gap: 10px; }
 body.panel .who { flex: 1 1 0; }
+
+/* ---- programları gizle ---- */
+body.no-hide .hide-only { display: none !important; }
+.hide-dialog { max-width: 520px; display: flex; flex-direction: column; max-height: calc(100dvh - 32px); }
+.hide-pick { overflow-y: auto; min-height: 0; flex: 1 1 auto; margin-top: 12px; }
+.hide-pick .row-title, #hideList .row-title { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hide-pick .row-text, #hideList .row-text { flex: 1; }
+.small-note { font-size: 13px; margin: 0; }
+
+.hide-word { display: flex; gap: 8px; margin-top: 12px; }
+.hide-word input { flex: 1; min-width: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips:not(:empty) { margin-top: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 4px 0 10px; border-radius: 9999px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; max-width: 100%; }
+.chip-x { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; }
+.chip-x:hover { background: var(--surface); color: var(--text); }
+.hide-group + .hide-group { border-top: 1px solid var(--line); }
+.hide-pick .row + .row { border-top: 0; }
+.hide-pick .hide-prog .row-title { font-weight: 600; }
+.hide-pick .hide-win { padding-left: 32px; padding-top: 8px; padding-bottom: 8px; }
+.hide-pick .hide-win .row-title { font-weight: 400; color: var(--muted); }
+.hide-pick .hide-win .row-hint { display: none; }
+.hide-pick .hide-group { padding-bottom: 4px; }

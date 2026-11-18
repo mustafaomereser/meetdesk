@@ -107,6 +107,7 @@ function render(s) {
 
   renderSessions(s.sessions || []);
   renderMeeting(s);
+  renderHide(s);
 
   if (s.pending) {
     $('reqName').textContent = s.pending.name || '';
@@ -331,6 +332,118 @@ $('chatForm').onsubmit = async (e) => {
     $('chatInput').value = '';
   } catch (err) { toast(err.message); }
 };
+
+// ---- programları / pencereleri gizle ----
+let hideOpen = false;
+const ruleKey = (exe, title) => (exe || '') + '|' + (title || '').toLowerCase();
+function hiddenKeys() { return new Set(((state && state.hiddenApps) || []).map((h) => ruleKey(h.exe, h.title))); }
+function exeLabel(exe) { return exe.replace(/\.exe$/i, ''); }
+function hideSwitch(rule, on) {
+  const sw = document.createElement('input');
+  sw.type = 'checkbox';
+  sw.className = 'switch';
+  sw.checked = on;
+  sw.onchange = () => api('hide', Object.assign({ on: sw.checked }, rule)).then(() => setTimeout(loadHideApps, 150), (e) => { toast(e.message); sw.checked = !sw.checked; });
+  return sw;
+}
+function hideRow(title, hint, rule, on, cls) {
+  const row = el('label', 'row ' + (cls || ''));
+  const tx = el('span', 'row-text');
+  const t = el('span', 'row-title', title);
+  t.title = title;
+  tx.append(t);
+  if (hint) tx.append(el('span', 'row-hint', hint));
+  row.append(tx, hideSwitch(rule, on));
+  return row;
+}
+async function loadHideApps() {
+  const box = $('hideApps');
+  let wins = [];
+  try { wins = await (await fetch('/api/hide/apps')).json(); } catch {}
+  const keys = hiddenKeys();
+  const groups = new Map();
+  for (const w of wins) { if (!groups.has(w.exe)) groups.set(w.exe, []); groups.get(w.exe).push(w.title); }
+  const frag = document.createDocumentFragment();
+  for (const [exe, titles] of groups) {
+    const all = keys.has(ruleKey(exe, ''));
+    const g = el('div', 'hide-group');
+    g.appendChild(hideRow(exeLabel(exe), titles.length > 1 ? `Programın ${titles.length} penceresinin tümü` : 'Programın tüm pencereleri', { exe, name: exeLabel(exe) }, all, 'hide-prog'));
+    for (const t of titles) {
+      const r = hideRow(t, 'Yalnızca bu pencere', { exe, title: t, name: t }, all || keys.has(ruleKey(exe, t)), 'hide-win');
+      if (all) r.querySelector('input').disabled = true;
+      g.appendChild(r);
+    }
+    frag.appendChild(g);
+  }
+  // Listede olup şu an açık olmayanlar (başlık kuralları üstte kelime olarak görünür)
+  for (const h of (state.hiddenApps || [])) {
+    if (!h.exe) continue;
+    if (groups.has(h.exe) && (!h.title || groups.get(h.exe).some((t) => t.toLowerCase() === h.title.toLowerCase()))) continue;
+    frag.appendChild(hideRow(h.name, (h.title ? exeLabel(h.exe) + ' penceresi' : 'Program') + ' · şu an açık değil', { exe: h.exe, title: h.title || '', name: h.name }, true));
+  }
+  box.innerHTML = '';
+  box.appendChild(frag);
+  if (!box.children.length) box.appendChild(el('div', 'row static muted', 'Açık pencere bulunamadı.'));
+  renderHideWords();
+}
+function renderHideWords() {
+  const box = $('hideWords');
+  box.innerHTML = '';
+  for (const h of ((state && state.hiddenApps) || [])) {
+    if (h.exe) continue;
+    const chip = el('span', 'chip', `“${h.title}”`);
+    const x = el('button', 'chip-x', '×');
+    x.type = 'button';
+    x.title = 'Kaldır';
+    x.onclick = () => api('hide', { title: h.title, on: false }).then(() => setTimeout(loadHideApps, 150), (e) => toast(e.message));
+    chip.appendChild(x);
+    box.appendChild(chip);
+  }
+}
+$('hideWordForm').onsubmit = (e) => {
+  e.preventDefault();
+  const v = $('hideWord').value.trim();
+  if (!v) return;
+  api('hide', { title: v, name: v, on: true }).then(() => { $('hideWord').value = ''; setTimeout(loadHideApps, 150); }, (err) => toast(err.message));
+};
+function openHide() {
+  hideOpen = true;
+  $('hideModal').classList.remove('hidden');
+  loadHideApps();
+  setTimeout(() => $('hideWord').focus(), 0);
+}
+function closeHide() { hideOpen = false; $('hideModal').classList.add('hidden'); }
+$('hidePick').onclick = openHide;
+$('hidePick2').onclick = openHide;
+$('hideRefresh').onclick = loadHideApps;
+$('hideDone').onclick = closeHide;
+$('hideModal').onclick = (e) => { if (e.target === $('hideModal')) closeHide(); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && hideOpen) closeHide(); });
+let hideKey = '';
+function renderHide(s) {
+  document.body.classList.toggle('no-hide', !s.hideSupported);
+  const list = s.hiddenApps || [];
+  const nm = (h) => h.exe ? h.name : `“${h.title}”`;
+  $('hideHint').textContent = list.length
+    ? (list.length === 1 ? `${nm(list[0])} bağlananlara karartılıyor.` : `${nm(list[0])} ve ${list.length - 1} tane daha bağlananlara karartılıyor.`)
+    : 'Seçtiğin programlar ve pencereler bağlananlara karartılmış görünür; sen normal görürsün.';
+  $('hidePick').textContent = list.length ? 'Düzenle' : 'Seç';
+  const key = JSON.stringify(list);
+  if (key === hideKey) return;
+  hideKey = key;
+  const box = $('hideList');
+  box.innerHTML = '';
+  for (const h of list) {
+    const row = el('div', 'row static');
+    const tx = el('span', 'row-text');
+    const what = !h.exe ? `Başlığında “${h.title}” geçen bütün pencereler` : h.title ? `${exeLabel(h.exe)} · bu pencere` : `${exeLabel(h.exe)} · programın tüm pencereleri`;
+    tx.append(el('span', 'row-title', h.exe ? h.name : `“${h.title}”`), el('span', 'row-hint', what));
+    row.append(tx, smallBtn('Kaldır', 'Bağlananlara yeniden görünsün', () => api('hide', { exe: h.exe, title: h.title || '', on: false }).catch((e) => toast(e.message)), 'ghost'));
+    box.appendChild(row);
+  }
+  box.classList.toggle('hidden', !list.length);
+  $('hideEmpty').classList.toggle('hidden', !!list.length);
+}
 
 $('privacySw').onchange = (e) => api('host/privacy', { on: e.target.checked }).catch((err) => { toast(err.message); e.target.checked = !e.target.checked; });
 $('stageStop').onclick = () => api('host/stagestop').catch((e) => toast(e.message));

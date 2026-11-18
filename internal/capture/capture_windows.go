@@ -135,6 +135,8 @@ type Capturer struct {
 	dx    *sharedDup // aynı monitörü izleyen oturumlarla paylaşılır
 	dxSeq uint64
 	dxLog bool
+
+	mask []rect // DIB'deki karede karartılmış alanlar (gizlenen programlar)
 }
 
 func New() (*Capturer, error) {
@@ -189,20 +191,24 @@ func (c *Capturer) Capture(d Display) (*Frame, error) {
 	if err := c.ensure(d.W, d.H); err != nil {
 		return nil, err
 	}
-	if c.dxgiCapture(d) {
+	mask := hiddenRects(d)
+	if c.dxgiCapture(d, mask) {
 		return &c.frame, nil
 	}
 	r, _, err := procBitBlt.Call(c.memDC, 0, 0, uintptr(d.W), uintptr(d.H), c.screenDC, uintptr(d.X), uintptr(d.Y), srcCopy)
 	if r == 0 {
 		return nil, fmt.Errorf("BitBlt: %v", err)
 	}
+	procGdiFlush.Call()
+	applyMask(&c.frame, mask)
+	c.mask = mask
 	c.drawCursor(d)
 	procGdiFlush.Call()
 	return &c.frame, nil
 }
 
 // dxgiCapture, kareyi DXGI ile DIB'e alır. false dönerse çağıran GDI ile devam eder.
-func (c *Capturer) dxgiCapture(d Display) bool {
+func (c *Capturer) dxgiCapture(d Display, mask []rect) bool {
 	if c.dx != nil && c.dx.d != d {
 		c.dx.release()
 		c.dx = nil
@@ -217,11 +223,15 @@ func (c *Capturer) dxgiCapture(d Display) bool {
 			c.dxLog = true
 			log.Printf("capture: DXGI Desktop Duplication %dx%d", d.W, d.H)
 		}
+		applyMask(&c.frame, mask)
+		c.mask = mask
 		c.drawCursor(d)
 		procGdiFlush.Call()
 		return true
 	case dxgiSame:
-		return true // ekran ve imleç değişmedi: DIB'deki kare hâlâ geçerli
+		// Ekran ve imleç değişmedi: DIB'deki kare hâlâ geçerli. Gizleme listesi değiştiyse
+		// (ör. bir program listeden çıkarıldı) kare baştan alınır.
+		return sameRects(mask, c.mask)
 	}
 	return false
 }
