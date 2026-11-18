@@ -1081,6 +1081,7 @@ func (a *App) showPanel() {
 		return
 	}
 	if !focusPanel() {
+		log.Printf("oturum paneli açılıyor")
 		openPanel(a.panelURL(), a.opts.DataDir)
 	}
 }

@@ -80,6 +80,7 @@ func openPanel(url, dataDir string) {
 	nativeMu.Lock()
 	panelWin = w
 	nativeMu.Unlock()
+	log.Printf("oturum paneli açıldı")
 }
 
 // focusPanel, paneli öne getirir (yoksa false).
