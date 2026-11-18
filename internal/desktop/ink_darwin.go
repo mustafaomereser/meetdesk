@@ -10,3 +10,7 @@ func inkClear()           {}
 
 // clickRipple: macOS'ta engellenen tıklama halkası henüz yok.
 func clickRipple(x, y int) {}
+
+// macOS: işaret dairesi ve gizlilik perdesi henüz yok.
+func ping(x, y int, color string)            {}
+func setPrivacy(on bool, onExit func()) bool { return !on }

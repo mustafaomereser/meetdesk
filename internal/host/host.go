@@ -40,6 +40,14 @@ type Server struct {
 	// MaxViewers, aynı anda bağlı olabilecek kişi sayısıdır (nil: 1). Toplantıda herkes
 	// aynı ekranı görür; fare/klavye izni oturum başına kapatılabilir.
 	MaxViewers func() int
+	// OnChat, sohbete yeni mesaj gelince çağrılır (yerel arayüz için).
+	OnChat func(ChatMsg)
+	// OnFile, bağlanan kişiden bir dosya alınıp kaydedilince çağrılır.
+	OnFile func(sid int, from, path string, size int64)
+	// OnPrivacy, gizlilik modu açılıp kapanınca çağrılır.
+	OnPrivacy func(on bool)
+	// FileDir, alınan dosyaların kaydedileceği klasör (nil: dosya alınmaz).
+	FileDir func() string
 	// Video, H.264 için ffmpeg hazırsa yolunu ve kodlayıcıyı döner (nil olabilir).
 	Video VideoInfo
 	// Concurrent, "aynı anda kullanım" (simülasyon modu) açıksa true döner (nil olabilir).
@@ -49,6 +57,9 @@ type Server struct {
 	sessions   map[int]*member // bağlı kişiler (sid -> oturum)
 	nextSID    int
 	ink        inkStore // ekrana çizimler (sonradan katılana da gönderilir)
+	privacy    bool     // gizlilik modu açık
+	privacyBy  int      // açan kişi (ayrılınca kapanır)
+	presenter  int      // monitörünü herkesin takip ettiği kişi (0: yok)
 	fails      int
 	lockUntil  time.Time
 	unauthed   int // henüz şifresini göndermemiş bağlantı sayısı
@@ -112,6 +123,7 @@ func (s *Server) tryAuth(pw string) (ok, unattended, locked bool) {
 type Perms struct {
 	Control   bool `json:"control"`   // fare ve klavye
 	Clipboard bool `json:"clipboard"` // pano paylaşımı (iki yönlü)
+	Files     bool `json:"files"`     // bağlanan kişi bu bilgisayara dosya gönderebilir
 }
 
 type message struct {
@@ -141,6 +153,12 @@ type message struct {
 	Wd   int    `json:"wd,omitempty"`
 	P    []int  `json:"p,omitempty"`
 	E    bool   `json:"e,omitempty"`
+	// Toplantı
+	On   bool   `json:"on,omitempty"`
+	FID  string `json:"fid,omitempty"`
+	Size int64  `json:"size,omitempty"`
+	N    int64  `json:"n,omitempty"`
+	Data string `json:"data,omitempty"`
 }
 
 // cleanName, viewer'ın gönderdiği adı ekranda gösterilebilir hale getirir.
@@ -243,6 +261,34 @@ type member struct {
 	sess   *session
 	name   string
 	remote string
+	color  string // kişiye atanan renk (çizim, işaret, sohbet)
+}
+
+// palette: bağlanan kişilere sırayla atanan renkler.
+var palette = []string{"#ff453a", "#0a84ff", "#32d74b", "#ffd60a", "#bf5af2", "#ff9f0a", "#64d2ff", "#ff375f", "#30d5c8", "#ac8e68"}
+
+// pickColor, bağlı kişilerde kullanılmayan ilk rengi seçer (s.mu tutulurken).
+func (s *Server) pickColor() string {
+	used := map[string]bool{}
+	for _, m := range s.sessions {
+		used[m.color] = true
+	}
+	for _, c := range palette {
+		if !used[c] {
+			return c
+		}
+	}
+	return palette[s.nextSID%len(palette)]
+}
+
+// SessionColor, bir kişinin rengini döner.
+func (s *Server) SessionColor(sid int) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if m := s.sessions[sid]; m != nil {
+		return m.color
+	}
+	return ""
 }
 
 // SendRTC, yerel arayüzden gelen sesli görüşme sinyalini sid numaralı kişiye iletir.
@@ -306,6 +352,7 @@ func (s *Server) SetControl(sid int, on bool) bool {
 		return false
 	}
 	sess.noControl.Store(!on)
+	s.sendPeople()
 	return true
 }
 
@@ -326,14 +373,16 @@ func (s *Server) broadcast(msg any, except int) {
 // sendPeople, herkese bağlı kişilerin listesini gönderir (toplantıda kimler var).
 func (s *Server) sendPeople() {
 	type person struct {
-		ID   int    `json:"id"`
-		Name string `json:"name"`
+		ID      int    `json:"id"`
+		Name    string `json:"name"`
+		Color   string `json:"color"`
+		Control bool   `json:"control"`
 	}
 	s.mu.Lock()
 	list := []person{}
 	for id, m := range s.sessions {
 		if m.sess != nil {
-			list = append(list, person{id, m.name})
+			list = append(list, person{id, m.name, m.color, m.sess.allowed().Control})
 		}
 	}
 	s.mu.Unlock()
@@ -478,6 +527,8 @@ func (s *Server) serve(c Conn, remote string) {
 			mb.sess = nil
 		}
 		s.mu.Unlock()
+		sess.files.closeAll()
+		s.sessionGone(sid)
 		s.sendPeople()
 	}()
 	s.ink.replay(ctx, sess)
@@ -520,7 +571,7 @@ func (s *Server) claim(cancel context.CancelFunc, name, remote string) (sid int,
 		s.sessions = map[int]*member{}
 	}
 	s.nextSID++
-	s.sessions[s.nextSID] = &member{cancel: cancel, name: name, remote: remote}
+	s.sessions[s.nextSID] = &member{cancel: cancel, name: name, remote: remote, color: s.pickColor()}
 	return s.nextSID, false
 }
 

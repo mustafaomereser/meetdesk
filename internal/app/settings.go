@@ -28,6 +28,7 @@ type Settings struct {
 	AllowClipboard bool `json:"allowClipboard"` // pano paylaşımı
 	AllowBrowser   bool `json:"allowBrowser"`   // tünel adresi tarayıcıda açılabilir (şifreyle)
 	MaxViewers     int  `json:"maxViewers"`     // aynı anda bağlanabilecek kişi (0: varsayılan)
+	AllowFiles     bool `json:"allowFiles"`     // bağlanan kişi dosya gönderebilir
 
 	// Sabit şifre (gözetimsiz erişim): yalnızca PBKDF2 özeti saklanır.
 	FixedHash string `json:"fixedHash,omitempty"`
@@ -35,7 +36,7 @@ type Settings struct {
 }
 
 func defaultSettings() Settings {
-	return Settings{OnlineAtStart: true, AllowControl: true, AllowClipboard: true}
+	return Settings{OnlineAtStart: true, AllowControl: true, AllowClipboard: true, AllowFiles: true}
 }
 
 func (a *App) settingsPath() string { return filepath.Join(a.opts.DataDir, "settings.json") }
@@ -68,6 +69,7 @@ func (a *App) syncStateLocked() {
 	a.st.AllowClipboard = a.set.AllowClipboard
 	a.st.FixedPassword = a.set.FixedHash != ""
 	a.st.AllowBrowser = a.set.AllowBrowser
+	a.st.AllowFiles = a.set.AllowFiles
 	a.st.MaxViewers = a.maxViewersLocked()
 }
 
@@ -116,7 +118,7 @@ func (a *App) browserAllowed() bool {
 func (a *App) permissions() host.Perms {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return host.Perms{Control: a.set.AllowControl, Clipboard: a.set.AllowClipboard}
+	return host.Perms{Control: a.set.AllowControl, Clipboard: a.set.AllowClipboard, Files: a.set.AllowFiles}
 }
 
 // setOnline, gelen bağlantılara açık/kapalı durumunu değiştirir.
@@ -163,6 +165,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 		AllowControl   *bool `json:"allowControl"`
 		AllowClipboard *bool `json:"allowClipboard"`
 		AllowBrowser   *bool `json:"allowBrowser"`
+		AllowFiles     *bool `json:"allowFiles"`
 		MaxViewers     *int  `json:"maxViewers"`
 		AutoStart      *bool `json:"autoStart"`
 	}
@@ -190,6 +193,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	set(&a.set.AllowControl, body.AllowControl)
 	set(&a.set.AllowClipboard, body.AllowClipboard)
 	set(&a.set.AllowBrowser, body.AllowBrowser)
+	set(&a.set.AllowFiles, body.AllowFiles)
 	if body.MaxViewers != nil {
 		a.set.MaxViewers = min(max(*body.MaxViewers, 1), 10)
 	}

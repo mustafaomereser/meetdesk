@@ -139,3 +139,11 @@ func InkRemove(id string) { inkRemove(id) }
 
 // InkClear, tüm çizgileri siler.
 func InkClear() { inkClear() }
+
+// Ping, bağlanan kişinin işaret ettiği noktada (masaüstü koordinatı) onun renginde yanıp
+// sönen bir daire gösterir.
+func Ping(x, y int, color string) { ping(x, y, color) }
+
+// SetPrivacy, gizlilik perdesini açar/kapatır. Bu bilgisayarın başındaki kişi perdeyi kısayolla
+// kapatırsa onExit çağrılır. Desteklenmiyorsa false döner.
+func SetPrivacy(on bool, onExit func()) bool { return setPrivacy(on, onExit) }

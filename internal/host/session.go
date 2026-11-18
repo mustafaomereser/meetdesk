@@ -54,6 +54,9 @@ type session struct {
 	srv        *Server                     // çizim ve katılımcı yayını için
 	noControl  atomic.Bool                 // bu kişinin fare/klavye izni ana kullanıcı tarafından kapatıldı
 	view       atomic.Pointer[viewDisplay] // şu an izlenen monitör (çizim koordinatları için)
+	ptRate     rate                        // işaret etme hız sınırı
+	chatRate   rate
+	files      fileState
 	statSent   bool
 	lastPerms  Perms
 	lastSecure bool
@@ -99,7 +102,7 @@ func newSession(c Conn, vi VideoInfo, wantH264 bool) *session {
 
 // allowed, bağlanan kişinin o anki izinleridir (Perms ayarlı değilse her şey serbest).
 func (s *session) allowed() Perms {
-	p := Perms{Control: true, Clipboard: true}
+	p := Perms{Control: true, Clipboard: true, Files: true}
 	if s.perms != nil {
 		p = s.perms()
 	}
@@ -153,6 +156,9 @@ func (s *session) readLoop(ctx context.Context) {
 			} else if m.T == "k" && !m.D && s.in.KeyDown(m.C) {
 				s.in.Key(m.C, false)
 			}
+			continue
+		}
+		if s.srv != nil && s.srv.handleMeeting(ctx, s, &m) {
 			continue
 		}
 		switch m.T {
@@ -370,7 +376,7 @@ func (s *session) sendState(ctx context.Context) {
 		s.c.WriteJSON(ctx, map[string]any{"t": "secure", "on": secure, "elevated": sysutil.IsElevated()})
 	}
 	if !s.statSent || p != s.lastPerms {
-		s.c.WriteJSON(ctx, map[string]any{"t": "perm", "control": p.Control, "clipboard": p.Clipboard})
+		s.c.WriteJSON(ctx, map[string]any{"t": "perm", "control": p.Control, "clipboard": p.Clipboard, "files": p.Files})
 	}
 	s.statSent, s.lastPerms, s.lastSecure = true, p, secure
 }
@@ -557,7 +563,10 @@ type viewDisplay struct {
 }
 
 func (s *session) setMapping(d capture.Display, w, h int) {
-	s.view.Store(&viewDisplay{s.cur, d})
+	old := s.view.Swap(&viewDisplay{s.cur, d})
+	if s.srv != nil && (old == nil || old.idx != s.cur) {
+		s.srv.followDisplay(s.sid, s.cur) // sunan kişi monitör değiştirdiyse herkes takip eder
+	}
 	s.in.SetMapping(input.Mapping{
 		OX: float64(d.X), OY: float64(d.Y),
 		SX: float64(d.W) / float64(w), SY: float64(d.H) / float64(h),

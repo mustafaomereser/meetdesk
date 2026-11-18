@@ -59,6 +59,7 @@ type Session struct {
 	Remote  string `json:"remote"`
 	Since   int64  `json:"since"`
 	Control bool   `json:"control"` // fare/klavye izni (oturum başına)
+	Color   string `json:"color"`   // kişiye atanan renk
 }
 
 type Pending struct {
@@ -78,18 +79,22 @@ type Perms struct {
 
 // State, arayüze SSE ile gönderilen anlık durumdur.
 type State struct {
-	Tunnel     string    `json:"tunnel"` // starting | downloading | on | error
-	TunnelMsg  string    `json:"tunnelMsg"`
-	ID         string    `json:"id"`
-	Password   string    `json:"password"`
-	AutoAccept bool      `json:"autoAccept"`
-	Concurrent bool      `json:"concurrent"` // aynı anda kullanım (simülasyon modu)
-	Sessions   []Session `json:"sessions"`
-	MaxViewers int       `json:"maxViewers"`
-	Pending    *Pending  `json:"pending"`
-	Perms      Perms     `json:"perms"`
-	Video      string    `json:"video"` // starting | downloading | on | error
-	VideoMsg   string    `json:"videoMsg"`
+	Tunnel     string         `json:"tunnel"` // starting | downloading | on | error
+	TunnelMsg  string         `json:"tunnelMsg"`
+	ID         string         `json:"id"`
+	Password   string         `json:"password"`
+	AutoAccept bool           `json:"autoAccept"`
+	Concurrent bool           `json:"concurrent"` // aynı anda kullanım (simülasyon modu)
+	Sessions   []Session      `json:"sessions"`
+	Chat       []host.ChatMsg `json:"chat"`
+	Received   []RecvFile     `json:"received"` // bağlananlardan alınan dosyalar
+	Privacy    bool           `json:"privacy"`  // gizlilik modu (ekran karartıldı)
+	AllowFiles bool           `json:"allowFiles"`
+	MaxViewers int            `json:"maxViewers"`
+	Pending    *Pending       `json:"pending"`
+	Perms      Perms          `json:"perms"`
+	Video      string         `json:"video"` // starting | downloading | on | error
+	VideoMsg   string         `json:"videoMsg"`
 
 	// Buluşma sunucusu: kalıcı cihaz ID'si ve bağlantı durumu.
 	DeviceID string `json:"deviceId"`
@@ -194,6 +199,7 @@ func New(o Options) *App {
 		Auth: a.checkPassword, Confirm: a.confirm, OnSession: a.onSession,
 		Video: a.videoInfo, Concurrent: a.concurrent, Perms: a.permissions,
 		Browser: a.browserAllowed, WebFS: web.FS, OnRTC: a.pushRTC, MaxViewers: a.maxViewers,
+		OnChat: a.onChat, OnFile: a.onFile, OnPrivacy: a.onPrivacy, FileDir: fileDir,
 	}
 	a.peers.load(o.DataDir)
 	if sysutil.PermissionsNeeded() {
@@ -346,9 +352,12 @@ func (a *App) onSession(sid int, remote, name string, active bool) {
 			}
 		}
 		if active {
-			out = append(out, Session{ID: sid, Name: name, Remote: remote, Since: time.Now().UnixMilli(), Control: true})
+			out = append(out, Session{ID: sid, Name: name, Remote: remote, Since: time.Now().UnixMilli(), Control: true, Color: a.host.SessionColor(sid)})
 		}
 		s.Sessions = out
+		if len(out) == 0 {
+			s.Chat = nil // toplantı bitti
+		}
 	})
 }
 
@@ -664,6 +673,11 @@ func (a *App) uiHandler() http.Handler {
 		}
 		writeOK(w)
 	})
+	mux.HandleFunc("POST /api/chat", a.handleChat)
+	mux.HandleFunc("POST /api/host/privacy", a.handlePrivacy)
+	mux.HandleFunc("POST /api/files/send", a.handleFileSend)
+	mux.HandleFunc("POST /api/files/save", a.handleFileSave)
+	mux.HandleFunc("POST /api/files/reveal", a.handleFileReveal)
 	mux.HandleFunc("POST /api/host/inkclear", func(w http.ResponseWriter, r *http.Request) {
 		a.host.ClearInk()
 		writeOK(w)
