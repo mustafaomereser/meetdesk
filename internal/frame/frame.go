@@ -17,6 +17,7 @@ type Options struct {
 	MinW, MinH int
 	DataDir    string // WebView2 profil klasörü (Windows)
 	OnClose    func() // pencere kapandığında (kullanıcı ya da Close)
+	Minimized  bool   // simge durumunda aç, odak çalma (sistemle başlatılınca)
 }
 
 // Window açık bir penceredir.

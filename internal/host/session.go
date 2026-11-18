@@ -60,6 +60,7 @@ type session struct {
 	lastBusy   time.Time // "karşı taraf kullanıyor" bildiriminin son gönderimi
 	lastRoute  int
 	remotePos  atomic.Uint64 // uzaktaki kişinin son imleç konumu (x<<32 | y), 0 = yok
+	remoteAt   atomic.Int64  // uzaktaki kişinin faresini en son oynattığı an (unix ns)
 
 	// Uyarlamalı bit hızı (H.264): bağlantı taşıyamıyorsa düşer, rahatsa kalite sınırına çıkar.
 	abrRate   int
@@ -144,6 +145,9 @@ func (s *session) readLoop(ctx context.Context) {
 		}
 		if (m.T == "mm" || m.T == "mb" || m.T == "wh" || m.T == "k" || m.T == "txt") && !s.allowed().Control {
 			// Yalnızca izleme: basılı kalmış düğme/tuş varsa bırak, gerisini yok say.
+			if m.T == "mb" && m.D {
+				s.blocked(m.X, m.Y) // tıklamaya çalıştığı yer görünsün
+			}
 			if m.T == "mb" && !m.D && s.in.ButtonDown(m.B) {
 				s.in.Button(m.B, false, m.X, m.Y)
 			} else if m.T == "k" && !m.D && s.in.KeyDown(m.C) {
@@ -164,6 +168,7 @@ func (s *session) readLoop(ctx context.Context) {
 			}
 		case "mm":
 			s.remotePos.Store(uint64(uint32(m.X))<<32 | uint64(uint32(m.Y)) | 1<<63)
+			s.remoteAt.Store(time.Now().UnixNano())
 			switch s.route(ctx, false) {
 			case routeNormal:
 				s.in.Move(m.X, m.Y)
@@ -188,6 +193,10 @@ func (s *session) readLoop(ctx context.Context) {
 			case routeSim:
 				s.in.BgButton(m.B, m.D, m.X, m.Y)
 				s.label(m.X, m.Y, true)
+			case routeDrop:
+				if m.D {
+					s.blocked(m.X, m.Y) // ana kullanıcı kullanıyor: tıklama uygulanmadı
+				}
 			}
 		case "wh":
 			switch s.route(ctx, false) {
@@ -325,8 +334,18 @@ func (s *session) takeoverLabel(ctx context.Context) {
 		if p == 0 || !desktop.LocalActive(localPriority) {
 			continue
 		}
+		// Uzaktaki kişinin faresi kıpırdamıyorsa etiket gösterilmez (en geç 3 sn'de kaybolur).
+		if time.Since(time.Unix(0, s.remoteAt.Load())) > 1500*time.Millisecond {
+			continue
+		}
 		s.label(int(int32(uint32(p>>32)&0x7FFFFFFF)), int(int32(uint32(p))), false)
 	}
+}
+
+// blocked, uygulanmayan bir tıklamayı o noktada küçük bir halkayla gösterir.
+func (s *session) blocked(x, y int) {
+	dx, dy := s.in.Desktop(x, y)
+	desktop.ClickBlocked(dx, dy)
 }
 
 // label, ad etiketini uzaktaki kişinin işlem yaptığı noktaya koyar. ghost=true ise

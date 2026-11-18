@@ -457,6 +457,12 @@ func create(o Options) (*win, error) {
 	c.Init(fmt.Sprintf("window.__RD_FRAME={host:'webview2',drag:%t};", nonClient))
 	w.resize()
 	c.Navigate(o.URL)
+	if o.Minimized {
+		const swShowMinNoActive = 7
+		pShow.Call(hwnd, swShowMinNoActive)
+		_ = c.Show()
+		return w, nil
+	}
 	pShow.Call(hwnd, swShow)
 	pShow.Call(hwnd, swShowNormal)
 	pUpdate.Call(hwnd)

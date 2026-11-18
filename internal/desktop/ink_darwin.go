@@ -7,3 +7,6 @@ func inkAdd(id string, laser bool, color string, width int, dx, dy, dw, dh int, 
 }
 func inkRemove(id string) {}
 func inkClear()           {}
+
+// clickRipple: macOS'ta engellenen tıklama halkası henüz yok.
+func clickRipple(x, y int) {}

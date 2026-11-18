@@ -257,7 +257,7 @@ $('inkClear').onclick = () => api('host/inkclear').then(() => toast('Çizimler s
 
 // ---- ayarlar ----
 
-const SWITCHES = ['online', 'onlineAtStart', 'allowBrowser', 'allowControl', 'allowClipboard', 'concurrent'];
+const SWITCHES = ['online', 'autoStart', 'onlineAtStart', 'allowBrowser', 'allowControl', 'allowClipboard', 'concurrent'];
 for (const k of SWITCHES) {
   $(k).onchange = (e) => api('settings', { [k]: e.target.checked }).catch((err) => { toast(err.message); if (state) render(state); });
 }

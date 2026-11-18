@@ -42,6 +42,8 @@ type Options struct {
 	NoTunnel   bool
 	Password   string
 	Concurrent bool
+	// AutoStart: oturum açılınca sistem tarafından başlatıldı (pencere simge durumunda açılır).
+	AutoStart bool
 	// Server: buluşma sunucusunun adresi (https://…). Boşsa kalıcı ID / cihaz listesi kapalıdır.
 	Server string
 	// UpdateRepo: güncellemelerin denetlendiği GitHub deposu ("sahip/ad"). Boşsa kapalı.
@@ -107,6 +109,7 @@ type State struct {
 	CanElevate bool        `json:"canElevate"` // "Yönetici olarak yeniden başlat" sunulabilir
 	Version    string      `json:"version"`
 	Update     *UpdateInfo `json:"update"`
+	AutoStart  bool        `json:"autoStart"` // bilgisayar açılınca (oturum açılınca) başlar
 }
 
 type App struct {
@@ -175,6 +178,7 @@ func New(o Options) *App {
 			Video: "starting", VideoMsg: "H.264 hazırlanıyor…",
 			Password: pw, Version: o.Version, Server: o.Server,
 			Elevated: sysutil.IsElevated(), CanElevate: sysutil.CanElevate(),
+			AutoStart: sysutil.AutoStart(),
 		},
 	}
 	a.set = a.loadSettings()
@@ -877,7 +881,7 @@ func (a *App) openUI() {
 		log.Printf("arayüz (geliştirme): %s", url)
 		return
 	}
-	if openNativeWindow(url, a.opts.DataDir, a.Quit) {
+	if openNativeWindow(url, a.opts.DataDir, a.Quit, a.opts.AutoStart) {
 		log.Printf("arayüz uygulama penceresinde açıldı")
 		return
 	}

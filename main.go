@@ -45,6 +45,7 @@ func run() {
 	waitPID := flag.Int("waitpid", 0, "Yeniden başlatmada: bu süreç kapanana kadar bekle (iç kullanım)")
 	server := flag.String("server", HubServer, "Buluşma sunucusu adresi (boş: sunucusuz mod)")
 	concurrent := flag.Bool("concurrent", false, "Aynı anda kullanımı (simülasyon modu) açık başlat")
+	autoStart := flag.Bool("autostart", false, "Sistemle birlikte başlatıldı: pencere simge durumunda açılır (iç kullanım)")
 	flag.Parse()
 
 	if *waitPID > 0 {
@@ -86,6 +87,7 @@ func run() {
 		NoTunnel:   *noTunnel,
 		Password:   *password,
 		Concurrent: *concurrent,
+		AutoStart:  *autoStart,
 		Server:     strings.TrimRight(*server, "/"),
 		UpdateRepo: UpdateRepo,
 		Version:    appVersion,

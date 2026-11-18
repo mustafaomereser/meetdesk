@@ -16,10 +16,10 @@ func init() {
 
 // openNativeWindow, arayüzü uygulamanın kendi çerçevesiz penceresinde (WebView2) açar.
 // WebView2 çalışma zamanı yoksa false döner (çağıran tarayıcıya düşer).
-func openNativeWindow(url, dataDir string, onClose func()) bool {
+func openNativeWindow(url, dataDir string, onClose func(), minimized bool) bool {
 	_, err := frame.Open(frame.Options{
 		URL: url, Title: "RemoteDesk", W: 1000, H: 720, MinW: 420, MinH: 480,
-		DataDir: filepath.Join(dataDir, "webview"), OnClose: onClose,
+		DataDir: filepath.Join(dataDir, "webview"), OnClose: onClose, Minimized: minimized,
 	})
 	if err != nil {
 		log.Printf("uygulama penceresi açılamadı: %v", err)

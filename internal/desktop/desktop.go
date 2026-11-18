@@ -70,17 +70,17 @@ func abs(v int) int {
 }
 
 // RemoteActivity, uzaktaki kişinin (x, y) noktasında işlem yaptığını bildirir; ad etiketi
-// orada görünür kalır (normal modda 1,5 sn). ghost=true: gerçek imleç orada değil
-// (simülasyon modu), etiketle birlikte bir "hayalet" ok imleci çizilir.
+// orada kısa süre görünür kalır (normal modda 1,5 sn, hayalet imleçte 3 sn): fare
+// kıpırdamazsa etiket kaybolur. ghost=true: gerçek imleç orada değil (simülasyon modu),
+// etiketle birlikte bir "hayalet" ok imleci çizilir.
 func RemoteActivity(name string, x, y int, ghost bool) {
 	if name == "" {
 		return
 	}
 	mu.Lock()
 	labelName, labelX, labelY, labelGhost = name, x, y, ghost
-	// Hayalet imleç, gerçek imleç gibi yerinde kalmalı; normal etiket kısa süre sonra kaybolur.
 	if ghost {
-		labelUntil = time.Now().Add(30 * time.Second)
+		labelUntil = time.Now().Add(3 * time.Second)
 	} else {
 		labelUntil = time.Now().Add(1500 * time.Millisecond)
 	}
@@ -91,6 +91,11 @@ func RemoteActivity(name string, x, y int, ghost bool) {
 		go runLabel()
 	}
 }
+
+// ClickBlocked, uzaktaki kişinin (x, y) noktasına tıklamaya çalıştığını ama tıklamanın
+// uygulanmadığını (yerel kullanıcı kullanıyor ya da yalnızca izleme izni var) gösterir:
+// o noktada küçük bir halka belirip söner.
+func ClickBlocked(x, y int) { clickRipple(x, y) }
 
 // HideLabel, etiketi hemen gizler (oturum bittiğinde).
 func HideLabel() {

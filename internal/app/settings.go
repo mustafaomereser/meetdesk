@@ -164,10 +164,19 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 		AllowClipboard *bool `json:"allowClipboard"`
 		AllowBrowser   *bool `json:"allowBrowser"`
 		MaxViewers     *int  `json:"maxViewers"`
+		AutoStart      *bool `json:"autoStart"`
 	}
 	if err := readJSON(r, &body); err != nil {
 		http.Error(w, err.Error(), 400)
 		return
+	}
+	if body.AutoStart != nil {
+		if err := sysutil.SetAutoStart(*body.AutoStart); err != nil {
+			log.Printf("sistemle başlatma ayarlanamadı: %v", err)
+			http.Error(w, "Sistemle başlatma ayarlanamadı.", 500)
+			return
+		}
+		a.update(func(s *State) { s.AutoStart = sysutil.AutoStart() })
 	}
 	a.mu.Lock()
 	set := func(dst *bool, v *bool) {
