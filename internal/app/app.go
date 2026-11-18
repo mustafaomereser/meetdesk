@@ -94,6 +94,7 @@ type State struct {
 	Received   []RecvFile     `json:"received"` // bağlananlardan alınan dosyalar
 	Privacy    bool           `json:"privacy"`  // gizlilik modu (ekran karartıldı)
 	Stage      string         `json:"stage"`    // toplantıda ekranını paylaşan kişi (boş: yok)
+	Speaking   []int          `json:"speaking"` // sesli görüşmede o an konuşanlar (0: bu bilgisayar)
 	AllowFiles bool           `json:"allowFiles"`
 	MaxViewers int            `json:"maxViewers"`
 	Pending    *Pending       `json:"pending"`
@@ -695,6 +696,18 @@ func (a *App) uiHandler() http.Handler {
 		writeOK(w)
 	})
 	mux.HandleFunc("POST /api/chat", a.handleChat)
+	mux.HandleFunc("POST /api/speaking", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			IDs []int `json:"ids"`
+		}
+		if err := readJSON(r, &body); err != nil || len(body.IDs) > 32 {
+			http.Error(w, "geçersiz istek", 400)
+			return
+		}
+		a.update(func(s *State) { s.Speaking = body.IDs })
+		a.host.SetSpeaking(body.IDs)
+		writeOK(w)
+	})
 	mux.HandleFunc("POST /api/ui/main", func(w http.ResponseWriter, r *http.Request) {
 		go a.showMain()
 		writeOK(w)

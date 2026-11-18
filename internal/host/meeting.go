@@ -611,3 +611,12 @@ func (s *Server) KickGuests() {
 		}
 	}
 }
+
+// SetSpeaking, sesli görüşmede o an konuşanları herkese bildirir (0: bu bilgisayarın başındaki
+// kişi). Sesleri bu bilgisayar karıştırdığı için kimin konuştuğunu yalnızca o bilir.
+func (s *Server) SetSpeaking(ids []int) {
+	if ids == nil {
+		ids = []int{}
+	}
+	s.broadcast(map[string]any{"t": "speak", "ids": ids}, -1)
+}

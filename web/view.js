@@ -359,6 +359,13 @@ function onMessage(ev) {
       case 'pt':
         addPing(m.x, m.y, m.d | 0, m.c, m.n);
         break;
+      case 'speak':
+        speakingIds = new Set(m.ids || []);
+        for (const li of document.querySelectorAll('#vPeople li')) {
+          const av = li.querySelector('.avatar');
+          if (av) av.classList.toggle('speaking', speakingIds.has(+li.dataset.id));
+        }
+        break;
       case 'privacy':
       case 'follow':
       case 'stage':
@@ -1286,6 +1293,7 @@ function setLbl(btn, text) {
 
 let people = [];
 let filesAllowed = true;
+let speakingIds = new Set(); // sesli görüşmede konuşanlar (0: karşı bilgisayarın başındaki kişi)
 function myColor() {
   const me = people.find((p) => p.id === mySid);
   return (me && me.color) || '#3b9eff';
@@ -1299,18 +1307,23 @@ renderPeople = function (list, me) {
   $('sideCount').textContent = list.length > 1 ? `· ${list.length} kişi` : '';
   const ul = $('vPeople');
   ul.innerHTML = '';
-  for (const p of list) {
+  // Karşı bilgisayarın başındaki kişi (sohbet ve sesli görüşmede o da var)
+  const hostRow = [{ id: 0, name: 'Bilgisayarın başındaki kişi', color: '#f5f5f7', host: true }];
+  for (const p of hostRow.concat(list)) {
     const li = document.createElement('li');
+    li.dataset.id = p.id;
     const av = document.createElement('span');
     av.className = 'avatar sm';
     av.style.setProperty('--c', p.color || '#777b84');
-    av.textContent = (p.name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+    av.textContent = p.host ? '' : (p.name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+    if (p.host) av.classList.add('host');
+    if (speakingIds.has(p.id)) av.classList.add('speaking');
     const nm = document.createElement('span');
     nm.className = 'vp-name';
     nm.textContent = p.name + (p.id === me ? ' (sen)' : '');
     const st = document.createElement('span');
     st.className = 'vp-meta';
-    st.textContent = p.control ? 'kontrol' : 'izliyor';
+    st.textContent = p.host ? 'ev sahibi' : p.control ? 'kontrol' : 'izliyor';
     li.append(av, nm, st);
     ul.appendChild(li);
   }

@@ -19,7 +19,7 @@ import (
 )
 
 // appVersion, sürüm paketlerinde (scripts/build-release.sh) kullanılır.
-const appVersion = "0.3.0"
+const appVersion = "0.4.0"
 
 func dataDir() string {
 	if runtime.GOOS == "windows" {

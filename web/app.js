@@ -202,7 +202,8 @@ function renderSessions(list) {
   $('meetEmpty').classList.toggle('hidden', n > 0);
   $('sessTitle').textContent = n === 1 ? 'Bağlı olan · 1 kişi' : `Bağlı olanlar · ${n} kişi`;
   $('kick').textContent = n > 1 ? 'Hepsini çıkar' : 'Bağlantıyı kes';
-  const key = JSON.stringify(list) + '|' + conf.key() + '|' + (state && state.allowControl);
+  const speaking = new Set((state && state.speaking) || []);
+  const key = JSON.stringify(list) + '|' + conf.key() + '|' + (state && state.allowControl) + '|' + [...speaking].join(',');
   if (key === sessKey) return;
   sessKey = key;
   const ul = $('sessList');
@@ -236,7 +237,9 @@ function renderSessions(list) {
         api('host/askpresent', { id: p.id, name: $('myName').value.trim() }).then(() => toast('İstek gönderildi'), (e) => toast(e.message)), 'ghost'),
       smallBtn('Çıkar', 'Bu kişinin bağlantısını kes', () => api('host/kick', { id: p.id }), 'ghost'),
     );
-    li.append(avatar(p.name, p.color), who, ctl, acts);
+    const av = avatar(p.name, p.color);
+    if (speaking.has(p.id)) { av.classList.add('speaking'); av.title = 'Konuşuyor'; }
+    li.append(av, who, ctl, acts);
     ul.appendChild(li);
   }
   conf.syncSessions(list);
@@ -248,6 +251,7 @@ let chatSeen = 0;
 let chatKey = '';
 function renderMeeting(s) {
   $('privacySw').checked = !!s.privacy;
+  $('voiceRow').classList.toggle('me-speaking', ((s.speaking) || []).includes(0));
   $('stageBar').classList.toggle('hidden', !s.stage);
   $('stageText').textContent = s.stage ? `${s.stage} ekranını toplantıdakilere gösteriyor.` : '';
 
@@ -941,7 +945,37 @@ class Conference {
     this.ctx = new AudioContext();
     this.mic = mic;
     this.micGain = this.ctx.createGain();
-    this.ctx.createMediaStreamSource(mic).connect(this.micGain);
+    const micSrc = this.ctx.createMediaStreamSource(mic);
+    micSrc.connect(this.micGain);
+    this.meters = new Map(); // sid (0: ben) -> {an, buf, until}
+    this.addMeter(0, micSrc);
+    this.speaking = '';
+    this.meterTimer = setInterval(() => this.measure(), 120);
+  }
+
+  // Konuşan göstergesi: her sesin seviyesi ölçülür; eşiği geçen kısa bir süre "konuşuyor" sayılır.
+  addMeter(sid, src) {
+    const an = this.ctx.createAnalyser();
+    an.fftSize = 512;
+    src.connect(an);
+    this.meters.set(sid, { an, buf: new Float32Array(an.fftSize), until: 0 });
+  }
+  measure() {
+    if (!this.ctx) return;
+    const now = performance.now();
+    const ids = [];
+    for (const [sid, m] of this.meters) {
+      if (sid === 0 && this.muted) continue;
+      m.an.getFloatTimeDomainData(m.buf);
+      let sum = 0;
+      for (const v of m.buf) sum += v * v;
+      if (Math.sqrt(sum / m.buf.length) > 0.025) m.until = now + 450;
+      if (m.until > now) ids.push(sid);
+    }
+    const key = ids.join(',');
+    if (key === this.speaking) return;
+    this.speaking = key;
+    fetch('/api/speaking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) }).catch(() => {});
   }
 
   // streamFor: sid'ye gönderilecek karışım (mikrofon + o kişi hariç herkes).
@@ -959,6 +993,7 @@ class Conference {
     if (me.src) try { me.src.disconnect(); } catch {}
     me.src = this.ctx.createMediaStreamSource(stream);
     for (const [other, c] of this.calls) if (other !== sid && c.dest) me.src.connect(c.dest);
+    this.addMeter(sid, me.src);
   }
 
   entry(sid) {
@@ -981,6 +1016,7 @@ class Conference {
     const e = this.calls.get(sid);
     if (!e) return;
     if (e.src) try { e.src.disconnect(); } catch {}
+    if (this.meters) this.meters.delete(sid);
     this.calls.delete(sid);
     if (this.incoming === sid) this.incoming = null;
     this.render();
@@ -1039,6 +1075,11 @@ class Conference {
     this.on = false;
     this.incoming = null;
     if (this.mic) for (const t of this.mic.getTracks()) t.stop();
+    if (this.meterTimer) clearInterval(this.meterTimer);
+    this.meterTimer = null;
+    this.meters = null;
+    if (this.speaking) fetch('/api/speaking', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"ids":[]}' }).catch(() => {});
+    this.speaking = '';
     if (this.ctx) this.ctx.close().catch(() => {});
     this.ctx = this.mic = this.micGain = null;
     this.muted = false;

@@ -897,3 +897,8 @@ body.touch.menu-open .vbar .vctl .vbtn { width: 100%; justify-content: flex-star
 body.touch.menu-open .vset summary.vbtn { display: none; }
 body.touch.side-open .fabs { display: none; }
 .badge.people { color: var(--muted); border-color: var(--line-2); }
+.avatar { transition: box-shadow .15s; }
+.avatar.speaking { box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--ok); }
+.avatar.host { background: var(--surface-2); border-color: var(--line-2); }
+.avatar.host::before { content: ""; width: 12px; height: 8px; border: 2px solid var(--muted); border-radius: 2px; }
+#voiceRow.me-speaking .row-title::after { content: "konuşuyorsun"; margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--ok); }
