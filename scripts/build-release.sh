@@ -57,8 +57,6 @@ build() { # goos goarch çıktı [ek ldflags]
 }
 
 build windows amd64 "$OUT/Meetdesk-$VERSION-windows-amd64.exe" "-H=windowsgui"
-# Eski adla da (0.3.0 ve öncesi güncelleyiciler bu adı arar)
-cp "$OUT/Meetdesk-$VERSION-windows-amd64.exe" "$OUT/RemoteDesk-$VERSION-windows-amd64.exe"
 
 # ── macOS ────────────────────────────────────────────────────────────────────
 NOTARIZE=()
@@ -155,5 +153,5 @@ for name in sorted(os.listdir(stage)):
 PYZIP
 rm -rf "$OUT/stage"
 
-( cd "$OUT" && sha256sum Meetdesk-* RemoteDesk-* > checksums.txt )
+( cd "$OUT" && sha256sum Meetdesk-* > checksums.txt )
 echo; ls -lh "$OUT" | awk 'NR>1 {printf "  %-52s %s\n", $9, $5}'
