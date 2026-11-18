@@ -10,7 +10,8 @@ import (
 )
 
 const runKey = `Software\Microsoft\Windows\CurrentVersion\Run`
-const runName = "RemoteDesk"
+const runName = "Meetdesk"
+const legacyRunName = "RemoteDesk" // eski sürümlerin kaydı
 
 // AutoStartFlag, sistemle başlatıldığında uygulamaya verilen bayraktır (pencere simge
 // durumunda açılır).
@@ -26,7 +27,9 @@ func AutoStart() bool {
 	defer k.Close()
 	v, _, err := k.GetStringValue(runName)
 	if err != nil {
-		return false
+		if v, _, err = k.GetStringValue(legacyRunName); err != nil {
+			return false
+		}
 	}
 	exe, err := os.Executable()
 	return err == nil && strings.Contains(strings.ToLower(v), strings.ToLower(exe))
@@ -40,6 +43,7 @@ func SetAutoStart(on bool) error {
 		return err
 	}
 	defer k.Close()
+	k.DeleteValue(legacyRunName)
 	if !on {
 		if err := k.DeleteValue(runName); err != nil && err != registry.ErrNotExist {
 			return err

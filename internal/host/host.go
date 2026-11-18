@@ -242,9 +242,9 @@ func (s *Server) Handler() http.Handler {
 }
 
 const browserOff = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>RemoteDesk</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#111113;color:#b0b4ba;font:15px system-ui,sans-serif;text-align:center;padding:24px">
+<title>Meetdesk</title><body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#111113;color:#b0b4ba;font:15px system-ui,sans-serif;text-align:center;padding:24px">
 <div><div style="font-size:18px;font-weight:600;color:#edeef0;margin-bottom:8px">Tarayıcıdan erişim kapalı</div>
-Bu bilgisayara yalnızca RemoteDesk uygulamasıyla bağlanılabilir.</div></body>`
+Bu bilgisayara yalnızca Meetdesk uygulamasıyla bağlanılabilir.</div></body>`
 
 func (s *Server) browserAllowed() bool { return s.Browser != nil && s.Browser() }
 

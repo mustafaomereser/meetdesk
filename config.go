@@ -20,7 +20,7 @@ package main
 // scripts/build-release.sh ve build.ps1 bunu -ldflags "-X main.HubServer=..." ile yapar.
 // Elle derlerken: go build -ldflags "-X main.HubServer=$(cat .hubserver)" .
 // Kendi sunucunu kurmak için: cd server && npx wrangler deploy, çıkan adresi .hubserver'a yaz.
-// Çalışırken değiştirmek için: RemoteDesk -server https://... (boş vermek: -server "").
+// Çalışırken değiştirmek için: Meetdesk -server https://... (boş vermek: -server "").
 var HubServer = ""
 
 // UpdateRepo, güncellemelerin denetlendiği GitHub deposudur ("sahip/ad").

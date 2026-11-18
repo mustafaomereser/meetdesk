@@ -139,7 +139,7 @@ func newWebWindow(cfg uintptr, title string, w, h float64, main bool) (win, view
 
 // window.open: aynı yapılandırmayla yeni pencere (window.opener korunur).
 func wvCreatePopup(self objc.ID, _ objc.SEL, webView, cfg, action, features objc.ID) objc.ID {
-	win, view := newWebWindow(uintptr(cfg), "RemoteDesk · Bağlantı", 1280, 800, false)
+	win, view := newWebWindow(uintptr(cfg), "Meetdesk · Bağlantı", 1280, 800, false)
 	msgID1(win, sel("center"), 0)
 	msgID1(win, sel("makeKeyAndOrderFront:"), 0)
 	return objc.ID(view)
@@ -206,9 +206,9 @@ func setupMenu() {
 	}
 
 	bar := newMenu("")
-	appMenu := newMenu("RemoteDesk")
+	appMenu := newMenu("Meetdesk")
 	msgID1(appMenu, sel("addItem:"), item("Pencereyi Kapat", "performClose:", "w"))
-	quit := item("RemoteDesk'ten Çık", "rdQuit:", "q")
+	quit := item("Meetdesk'ten Çık", "rdQuit:", "q")
 	msgID1(quit, sel("setTarget:"), wvDelegate)
 	msgID1(appMenu, sel("addItem:"), quit)
 	sub(bar, appMenu)

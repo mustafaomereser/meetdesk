@@ -1,4 +1,4 @@
-// RemoteDesk buluşma sunucusu (Cloudflare Workers + Durable Object).
+// Meetdesk buluşma sunucusu (Cloudflare Workers + Durable Object).
 //
 // Görevi: kalıcı cihaz ID'si vermek, kimin çevrimiçi olduğunu bilmek ve bağlanmak isteyen
 // kişiye hedef cihazın o anki tünel adresini iletmek. Görüntü, klavye/fare ve ŞİFRE buradan
@@ -123,7 +123,7 @@ export class Hub {
         case "/signal":
           return await this.signal(req, ip);
         case "/":
-          return new Response("RemoteDesk hub\n");
+          return new Response("Meetdesk hub\n");
       }
       if (url.pathname.startsWith("/c/")) return this.browserPage(url);
       return json({ error: "bulunamadı" }, 404);
@@ -159,12 +159,12 @@ export class Hub {
     const id = decodeURIComponent(url.pathname.slice(3)).replace(/\s+/g, "").toLowerCase();
     if (!validId(id)) return new Response("Geçersiz ID", { status: 404 });
     const html = `<!doctype html><html lang="tr"><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>RemoteDesk · ${id}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Meetdesk · ${id}</title>
 <style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111113;color:#b0b4ba;font:15px system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center;padding:24px}
 .t{font-size:18px;font-weight:600;color:#edeef0;margin-bottom:8px}.e{color:#ff6369}
 .s{width:22px;height:22px;border:2px solid #2e3135;border-top-color:#edeef0;border-radius:50%;margin:0 auto 16px;animation:r 1s linear infinite}
 @keyframes r{to{transform:rotate(360deg)}}</style>
-<body><div><div class="s" id="sp"></div><div class="t">RemoteDesk</div><div id="m">${id} cihazına ulaşılıyor…</div></div>
+<body><div><div class="s" id="sp"></div><div class="t">Meetdesk</div><div id="m">${id} cihazına ulaşılıyor…</div></div>
 <script>
 const id=${JSON.stringify(id)};const m=document.getElementById('m');
 function fail(t){document.getElementById('sp').remove();m.className='e';m.textContent=t;}

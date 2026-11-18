@@ -33,54 +33,54 @@ jobs:
           ZIP="$(ls dl/*-macos.zip)"
           xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "$ZIP"
           ditto -x -k "$ZIP" /Applications
-          xattr -l /Applications/RemoteDesk.app | head -5
-          ls -la /Applications/RemoteDesk.app/Contents/MacOS
+          xattr -l /Applications/Meetdesk.app | head -5
+          ls -la /Applications/Meetdesk.app/Contents/MacOS
 
       - name: İmza ve Gatekeeper
         run: |
-          codesign -dv --verbose=4 /Applications/RemoteDesk.app 2>&1 | head -20 || true
-          codesign --verify --deep --strict --verbose=2 /Applications/RemoteDesk.app 2>&1 || true
-          spctl -a -vv -t exec /Applications/RemoteDesk.app 2>&1 || true
-          xcrun stapler validate /Applications/RemoteDesk.app 2>&1 || true
+          codesign -dv --verbose=4 /Applications/Meetdesk.app 2>&1 | head -20 || true
+          codesign --verify --deep --strict --verbose=2 /Applications/Meetdesk.app 2>&1 || true
+          spctl -a -vv -t exec /Applications/Meetdesk.app 2>&1 || true
+          xcrun stapler validate /Applications/Meetdesk.app 2>&1 || true
 
       - name: Açma denemesi 1 (karantinalı, open)
         timeout-minutes: 3
         run: |
           mkdir -p shots
           date '+%Y-%m-%d %H:%M:%S' > start.txt
-          ( open /Applications/RemoteDesk.app; echo "open çıkış kodu: $?" > open1.txt ) &
+          ( open /Applications/Meetdesk.app; echo "open çıkış kodu: $?" > open1.txt ) &
           sleep 20
           screencapture -x shots/1-karantinali.png || true
           cat open1.txt 2>/dev/null || echo "open hâlâ bekliyor (ekranda bir pencere olabilir)"
-          pgrep -fl RemoteDesk || echo "RemoteDesk süreci YOK"
+          pgrep -fl Meetdesk || echo "Meetdesk süreci YOK"
           echo "--- uygulama log'u"
           cat ~/Library/Application\ Support/RemoteDesk/remotedesk.log 2>&1 | head -60
           echo "--- çökme raporları"
           ls ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i remotedesk || echo "çökme raporu yok"
-          for f in ~/Library/Logs/DiagnosticReports/RemoteDesk*; do [ -f "$f" ] && head -100 "$f"; done
-          pkill -f RemoteDesk || true; pkill -x open || true
+          for f in ~/Library/Logs/DiagnosticReports/Meetdesk*; do [ -f "$f" ] && head -100 "$f"; done
+          pkill -f Meetdesk || true; pkill -x open || true
           osascript -e 'tell application "System Events" to keystroke return' 2>/dev/null || true
 
       - name: Açma denemesi 2 (karantinasız, open)
         timeout-minutes: 3
         run: |
-          xattr -dr com.apple.quarantine /Applications/RemoteDesk.app
+          xattr -dr com.apple.quarantine /Applications/Meetdesk.app
           rm -f ~/Library/Application\ Support/RemoteDesk/remotedesk.log
-          ( open /Applications/RemoteDesk.app; echo "open çıkış kodu: $?" > open2.txt ) &
+          ( open /Applications/Meetdesk.app; echo "open çıkış kodu: $?" > open2.txt ) &
           sleep 20
           screencapture -x shots/2-karantinasiz.png || true
           cat open2.txt 2>/dev/null || echo "open hâlâ bekliyor (ekranda bir pencere olabilir)"
-          pgrep -fl RemoteDesk || echo "RemoteDesk süreci YOK"
+          pgrep -fl Meetdesk || echo "Meetdesk süreci YOK"
           cat ~/Library/Application\ Support/RemoteDesk/remotedesk.log 2>&1 | head -60
-          pkill -f RemoteDesk || true; pkill -x open || true
+          pkill -f Meetdesk || true; pkill -x open || true
 
       - name: Ad etiketi (probe ile bağlan, fareyi gezdir)
         if: always()
         timeout-minutes: 4
         run: |
-          pkill -f RemoteDesk || true
+          pkill -f Meetdesk || true
           go build -o probe ./cmd/probe
-          /Applications/RemoteDesk.app/Contents/MacOS/RemoteDesk -headless -notunnel -autoaccept -concurrent -password testsifre > label-host.txt 2>&1 &
+          /Applications/Meetdesk.app/Contents/MacOS/Meetdesk -headless -notunnel -autoaccept -concurrent -password testsifre > label-host.txt 2>&1 &
           HOST=$!
           for i in $(seq 1 30); do grep -q "ID *:" label-host.txt && break; sleep 1; done
           ADDR="$(sed -n 's/.*ID *: *//p' label-host.txt | head -1)"
@@ -97,7 +97,7 @@ jobs:
         if: always()
         timeout-minutes: 2
         run: |
-          /Applications/RemoteDesk.app/Contents/MacOS/RemoteDesk -headless -notunnel -autoaccept > direct.txt 2>&1 &
+          /Applications/Meetdesk.app/Contents/MacOS/Meetdesk -headless -notunnel -autoaccept > direct.txt 2>&1 &
           PID=$!
           sleep 10
           kill $PID 2>/dev/null; wait $PID 2>/dev/null
@@ -109,7 +109,7 @@ jobs:
         timeout-minutes: 3
         run: |
           log show --start "$(cat start.txt)" --style compact \
-            --predicate 'process == "RemoteDesk" OR eventMessage CONTAINS[c] "RemoteDesk"' \
+            --predicate 'process == "Meetdesk" OR eventMessage CONTAINS[c] "Meetdesk"' \
             2>/dev/null | grep -viE "mdworker|Spotlight|mds" | tail -120 || true
 
       - name: Ekran görüntüleri

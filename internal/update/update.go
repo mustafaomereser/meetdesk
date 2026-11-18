@@ -63,9 +63,9 @@ func parts(v string) [3]int {
 
 func assetName(version string) string {
 	if runtime.GOOS == "darwin" {
-		return "RemoteDesk-" + version + "-macos.zip"
+		return "Meetdesk-" + version + "-macos.zip"
 	}
-	return "RemoteDesk-" + version + "-windows-" + runtime.GOARCH + ".exe"
+	return "Meetdesk-" + version + "-windows-" + runtime.GOARCH + ".exe"
 }
 
 // Latest, deponun son (taslak/ön sürüm olmayan) sürümünü döner.
@@ -75,7 +75,7 @@ func Latest(ctx context.Context, repo string) (*Release, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "RemoteDesk-updater")
+	req.Header.Set("User-Agent", "Meetdesk-updater")
 	resp, err := httpc.Do(req)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func download(ctx context.Context, url, dst string, progress func(done, total in
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "RemoteDesk-updater")
+	req.Header.Set("User-Agent", "Meetdesk-updater")
 	resp, err := httpc.Do(req)
 	if err != nil {
 		return err
@@ -253,7 +253,7 @@ func (r *Release) installWindows(ctx context.Context, exe string, progress func(
 }
 
 func (r *Release) installMac(ctx context.Context, exe string, progress func(done, total int64)) error {
-	// exe: .../RemoteDesk.app/Contents/MacOS/RemoteDesk
+	// exe: .../Meetdesk.app/Contents/MacOS/Meetdesk (eski kurulumlarda RemoteDesk.app)
 	app := filepath.Dir(filepath.Dir(filepath.Dir(exe)))
 	if !strings.HasSuffix(app, ".app") {
 		return errors.New("uygulama paketi bulunamadı (.app içinden çalışmıyor)")
@@ -271,9 +271,18 @@ func (r *Release) installMac(ctx context.Context, exe string, progress func(done
 	if b, err := exec.CommandContext(ctx, "/usr/bin/ditto", "-x", "-k", zip, out).CombinedOutput(); err != nil {
 		return fmt.Errorf("zip açılamadı: %v %s", err, b)
 	}
-	newApp := filepath.Join(out, "RemoteDesk.app")
-	if _, err := os.Stat(filepath.Join(newApp, "Contents", "MacOS", "RemoteDesk")); err != nil {
-		return errors.New("güncelleme paketinde RemoteDesk.app yok")
+	// Paketteki uygulama (yeni ad Meetdesk; eski ad RemoteDesk). Mevcut kurulumun yerine,
+	// aynı konuma ve aynı klasör adıyla kopyalanır.
+	newApp := ""
+	for _, n := range []string{"Meetdesk.app", "RemoteDesk.app"} {
+		p := filepath.Join(out, n)
+		if entries, err := os.ReadDir(filepath.Join(p, "Contents", "MacOS")); err == nil && len(entries) > 0 {
+			newApp = p
+			break
+		}
+	}
+	if newApp == "" {
+		return errors.New("güncelleme paketinde uygulama yok")
 	}
 	// İndirilen dosyada karantina işareti olmaz; yine de temizle (Gatekeeper sorusu çıkmasın).
 	exec.Command("/usr/bin/xattr", "-dr", "com.apple.quarantine", newApp).Run()

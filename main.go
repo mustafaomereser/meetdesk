@@ -1,4 +1,5 @@
-// RemoteDesk: cloudflared quick tunnel üzerinden çalışan, AnyDesk benzeri uzak masaüstü.
+// Meetdesk (eski adıyla RemoteDesk): uzaktan erişim ve toplantı aracı. Bilgisayarlar mümkünse
+// doğrudan (WebRTC), değilse Cloudflare quick tunnel üzerinden bağlanır.
 package main
 
 import (
@@ -61,13 +62,13 @@ func run() {
 		log.SetOutput(io.MultiWriter(lf, os.Stderr))
 	}
 	log.SetFlags(log.Ltime | log.Lmicroseconds)
-	log.Printf("RemoteDesk %s (%s/%s)", appVersion, runtime.GOOS, runtime.GOARCH)
+	log.Printf("Meetdesk %s (%s/%s)", appVersion, runtime.GOOS, runtime.GOARCH)
 
 	// Çift tıkla açılınca konsol yok: başlangıçta bir şey ters giderse kullanıcı görsün.
 	fail := func(msg string) {
 		log.Printf("HATA: %s", msg)
 		if !*headless {
-			sysutil.Alert("RemoteDesk başlatılamadı", msg+"\n\nAyrıntılar: "+filepath.Join(dir, "remotedesk.log"))
+			sysutil.Alert("Meetdesk başlatılamadı", msg+"\n\nAyrıntılar: "+filepath.Join(dir, "remotedesk.log"))
 		}
 		os.Exit(1)
 	}

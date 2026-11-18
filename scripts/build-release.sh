@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# RemoteDesk sürüm paketleri — Windows'tan çalışır (CGO yok, imza rcodesign ile).
+# Meetdesk sürüm paketleri — Windows'tan çalışır (CGO yok, imza rcodesign ile).
 # Çıktı dist/release/: Windows exe + macOS için .app içeren zip'ler.
 #
 # macOS imza kademeleri:
@@ -43,7 +43,7 @@ for c in python python3 py; do
 done
 [ -n "$PY" ] || { echo "HATA: python yok" >&2; exit 1; }
 
-echo "RemoteDesk $VERSION"
+echo "Meetdesk $VERSION"
 echo "  vet"
 GOOS=windows GOARCH=amd64 go vet ./...
 GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go vet ./...
@@ -55,18 +55,20 @@ build() { # goos goarch çıktı [ek ldflags]
   CGO_ENABLED=0 GOOS="$1" GOARCH="$2" go build -trimpath -ldflags="$LD ${4:-}" -o "$3" .
 }
 
-build windows amd64 "$OUT/RemoteDesk-$VERSION-windows-amd64.exe" "-H=windowsgui"
+build windows amd64 "$OUT/Meetdesk-$VERSION-windows-amd64.exe" "-H=windowsgui"
+# Eski adla da (0.3.0 ve öncesi güncelleyiciler bu adı arar)
+cp "$OUT/Meetdesk-$VERSION-windows-amd64.exe" "$OUT/RemoteDesk-$VERSION-windows-amd64.exe"
 
 # ── macOS ────────────────────────────────────────────────────────────────────
 NOTARIZE=()
 make_app() { # klasör — Apple Silicon + Intel tek "universal" binary
-  local app="$OUT/stage/$1/RemoteDesk.app"
+  local app="$OUT/stage/$1/Meetdesk.app"
   mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
   build darwin arm64 "$OUT/stage/rd-arm64"
   build darwin amd64 "$OUT/stage/rd-amd64"
-  rcodesign macho-universal-create --output "$app/Contents/MacOS/RemoteDesk" "$OUT/stage/rd-arm64" "$OUT/stage/rd-amd64" >/dev/null
+  rcodesign macho-universal-create --output "$app/Contents/MacOS/Meetdesk" "$OUT/stage/rd-arm64" "$OUT/stage/rd-amd64" >/dev/null
   rm -f "$OUT/stage/rd-arm64" "$OUT/stage/rd-amd64"
-  chmod +x "$app/Contents/MacOS/RemoteDesk"
+  chmod +x "$app/Contents/MacOS/Meetdesk"
   cp packaging/remotedesk.icns "$app/Contents/Resources/remotedesk.icns"
   # Info.plist, Mac'te açıldığı doğrulanan syncFTP paketiyle aynı yapıda tutulur.
   cat > "$app/Contents/Info.plist" <<PLIST
@@ -74,18 +76,18 @@ make_app() { # klasör — Apple Silicon + Intel tek "universal" binary
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleName</key><string>RemoteDesk</string>
-  <key>CFBundleDisplayName</key><string>RemoteDesk</string>
+  <key>CFBundleName</key><string>Meetdesk</string>
+  <key>CFBundleDisplayName</key><string>Meetdesk</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
-  <key>CFBundleExecutable</key><string>RemoteDesk</string>
+  <key>CFBundleExecutable</key><string>Meetdesk</string>
   <key>CFBundleIconFile</key><string>remotedesk</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><false/>
   <key>NSHighResolutionCapable</key><true/>
-  <key>NSMicrophoneUsageDescription</key><string>Bağlanan kişiyle sesli görüşme için mikrofon kullanılır.</string>
+  <key>NSMicrophoneUsageDescription</key><string>Toplantıda sesli görüşme için mikrofon kullanılır.</string>
 </dict>
 </plist>
 PLIST
@@ -129,7 +131,7 @@ def is_exe(rel):
     return '/Contents/MacOS/' in rel
 for name in sorted(os.listdir(stage)):
     src = os.path.join(stage, name)
-    dest = os.path.join(out, f'RemoteDesk-{ver}-{name}.zip')
+    dest = os.path.join(out, f'Meetdesk-{ver}-{name}.zip')
     with zipfile.ZipFile(dest, 'w', zipfile.ZIP_DEFLATED) as z:
         for root, dirs, files in os.walk(src):
             dirs.sort()
@@ -152,5 +154,5 @@ for name in sorted(os.listdir(stage)):
 PYZIP
 rm -rf "$OUT/stage"
 
-( cd "$OUT" && sha256sum RemoteDesk-* > checksums.txt )
+( cd "$OUT" && sha256sum Meetdesk-* RemoteDesk-* > checksums.txt )
 echo; ls -lh "$OUT" | awk 'NR>1 {printf "  %-52s %s\n", $9, $5}'

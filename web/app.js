@@ -144,7 +144,7 @@ function renderPerms(p) {
     box.appendChild(row);
   }
   const hint = document.createElement('div');
-  hint.textContent = 'Açılan listede RemoteDesk\'i aç (anahtarı yak). macOS izni uygulamayı yeniden başlatınca uygular.';
+  hint.textContent = 'Açılan listede Meetdesk\'i aç (anahtarı yak). macOS izni uygulamayı yeniden başlatınca uygular.';
   box.appendChild(hint);
   if (p.canRestart) {
     const actions = document.createElement('div');

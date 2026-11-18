@@ -1,4 +1,4 @@
-// probe: bir RemoteDesk host'una bağlanıp akışı test eden komut satırı aracı.
+// probe: bir Meetdesk host'una bağlanıp akışı test eden komut satırı aracı.
 //
 //	go run ./cmd/probe -url wss://xxx.trycloudflare.com/ws -pw sifre -out ilk.png
 //	go run ./cmd/probe -url ws://127.0.0.1:1234/ws -pw sifre -h264 -h264out akis.h264 -dur 5s

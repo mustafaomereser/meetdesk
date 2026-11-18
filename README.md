@@ -1,10 +1,10 @@
-# RemoteDesk
+# Meetdesk
 
-AnyDesk benzeri, Go ile yazılmış uzak masaüstü (Windows ve macOS). Bilgisayarlar mümkünse **doğrudan** (WebRTC) bağlanır; ağ engeli varsa Cloudflare **quick tunnel** üzerinden. Hesap, domain ya da port açma gerekmez.
+Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski adı RemoteDesk. Bilgisayarlar mümkünse **doğrudan** (WebRTC) bağlanır; ağ engeli varsa Cloudflare **quick tunnel** üzerinden. Hesap, domain ya da port açma gerekmez.
 
 ## Kullanım
 
-`RemoteDesk.exe`yi (macOS'ta `RemoteDesk.app`) aç. Ana pencerede bu bilgisayarın **ID**'si ve tek kullanımlık **şifresi** görünür.
+`Meetdesk.exe`yi (macOS'ta `Meetdesk.app`) aç. Ana pencerede bu bilgisayarın **ID**'si ve tek kullanımlık **şifresi** görünür.
 
 - **Bağlanmak:** Karşı tarafın ID'sini gir. Şifreyi biliyorsan doğrudan bağlanırsın. Şifre alanını boş bırakırsan karşı tarafa bir **bağlantı isteği** gider; onaylarsa bağlanırsın.
 - **Gözetimsiz erişim:** Ayarlar > Sabit şifre. Bu şifreyle gelen kişi onay beklemeden bağlanır. Şifrenin kendisi saklanmaz, yalnızca PBKDF2 özeti tutulur.
@@ -28,15 +28,31 @@ AnyDesk benzeri, Go ile yazılmış uzak masaüstü (Windows ve macOS). Bilgisay
 ### Toplantı ve sunum
 - **Çok kişili bağlantı:**
   - Aynı bilgisayara birden fazla kişi aynı anda bağlanabilir; kişi sayısı Ayarlar'dan seçilir.
-  - Ana pencerede bağlı kişiler listelenir.
-  - Fare/klavye izni kişi başına kapatılabilir ve her kişi ayrı ayrı çıkarılabilir.
-- **Ekrana çizim:**
-  - Bağlanan herkes kalemle çizebilir ya da lazer işaretçi kullanabilir; 5 renk, geri al ve hepsini sil var.
-  - Çizgiler herkeste ve bağlanılan bilgisayarın ekranında görünür.
-  - Windows'ta bağlanılan bilgisayardaki çizim katmanı ekran yakalamaya girmez, yani görüntüde iki kez çıkmaz.
+  - Her kişiye bir renk atanır.
+  - Toplantı sayfasında bağlı olanlar listelenir; fare/klavye izni kişi başına kapatılabilir, her kişi ayrı ayrı çıkarılabilir.
+- **Sohbet:**
+  - Bağlı herkes ve bilgisayarın başındaki kişi ortak sohbet eder.
+  - Sonradan katılan kişi geçmişi görür.
+- **Ekrana çizim ve işaret etme:**
+  - Kalem, lazer, 5 renk, geri al, hepsini sil.
+  - **İşaret et** aracıyla dokunulan yerde, o kişinin renginde bir daire (kenarı tam renk, içi yarı saydam) hızlıca yanıp söner ve kaybolur.
+  - Çizgiler ve işaretler herkeste ve bağlanılan bilgisayarın ekranında görünür.
+  - Windows'ta bağlanılan bilgisayardaki katman ekran yakalamaya girmez, yani görüntüde iki kez çıkmaz.
+- **Sunum:**
+  - "Herkes benim monitörümü izlesin": sunan kişi monitör değiştirince herkesin görüntüsü de değişir.
+  - "Ekranımı herkese göster": kendi bilgisayarını toplantıya açarsın. Toplantıdakiler tek kullanımlık bir toplantı anahtarıyla, onaysız ve yalnızca izleme izniyle bağlanır. Paylaşım bitince anahtar geçersiz olur.
+  - Bilgisayarın başındaki kişi bağlı birinden ekranını göstermesini isteyebilir.
+- **Gizlilik modu:**
+  - Bağlanılan bilgisayarın ekranı kararır; bağlananlar görmeye ve çalışmaya devam eder.
+  - Bilgisayarın başındaki kişi Ctrl+Alt+Shift+P ile kapatır.
+- **Dosya aktarımı:**
+  - İki yönlü, sürükle-bırakla.
+  - Alınan dosyalar İndirilenler/Meetdesk klasörüne kaydedilir.
+  - Dosya alma Ayarlar'dan kapatılabilir.
 - **Sesli görüşme:**
   - WebRTC ile, mikrofon izni ister.
   - Toplantıda bağlanılan bilgisayar herkesin sesini birleştirir, herkes herkesi duyar.
+- **Oturum paneli:** Windows'ta biri bağlanınca ekranın sağ altında küçük bir panel açılır: bağlı olanlar, sohbet ve araçlar.
 
 ### Görüntü
 - **Ekran yakalama:**
@@ -58,6 +74,11 @@ AnyDesk benzeri, Go ile yazılmış uzak masaüstü (Windows ve macOS). Bilgisay
   - iPhone klavyeyi yalnızca dokunuş anında açtırdığı için orada düğme kullanılır.
 
 ### Diğer
+- **Bildirim alanı simgesi** (Windows):
+  - Ana pencere kapanınca uygulama arka planda bağlantı almaya devam eder.
+  - Simgeye sağ tıklayınca menü açılır.
+- **Bilgisayar açılınca başlat:** Oturum açınca arka planda başlar.
+- **Engellenen tıklama:** Bağlanan kişinin tıklaması uygulanmadıysa (ana kullanıcı fareyi kullanıyor ya da yalnızca izleme izni var) o noktada sönen bir halka görünür.
 - **Aynı anda kullanım** (deneysel): Bağlanan kişi kendi hayalet imleciyle çalışır, ana kullanıcının imleci oynamaz. Kapalıyken ana kullanıcı fareye dokununca kontrol ona geçer ve uzaktaki kişinin imleci adıyla gösterilir.
 - **UAC:** Windows'ta "Yönetici olarak yeniden başlat" ile UAC pencereleri de kontrol edilebilir. Güvenli masaüstü açıkken izleyiciye uyarı gösterilir.
 - **Güncelleme:** GitHub sürümleri denetlenir, tek tıkla kurulur (SHA-256 doğrulamalı).
@@ -76,7 +97,7 @@ cd server && npx wrangler deploy     # çıkan adresi .hubserver dosyasına yaz
 
 Sunucudan görüntü, klavye/fare ya da şifre geçmez. Sunucu yalnızca kimin çevrimiçi olduğunu bilir, el sıkışmayı iletir ve takım listelerini tutar. Çevrimiçi bilgisi sorgulanmaz; değişince sunucu bildirir. Böylece istek kotası korunur.
 
-### Komut satırı seçenekleri (`RemoteDesk-console.exe`)
+### Komut satırı seçenekleri (`Meetdesk-console.exe`)
 
 | Seçenek | Açıklama |
 |---|---|

@@ -74,7 +74,7 @@ func (a *App) handleViewerOpen(w http.ResponseWriter, r *http.Request) {
 	id := c.ID
 	win, err := frame.Open(frame.Options{
 		URL:   "http://" + a.uiAddr + "/view.html?k=" + key,
-		Title: label + " · RemoteDesk", W: 1280, H: 800, MinW: 480, MinH: 320,
+		Title: label + " · Meetdesk", W: 1280, H: 800, MinW: 480, MinH: 320,
 		DataDir: viewerDataDir(a.opts.DataDir),
 		OnClose: func() {
 			v.mu.Lock()
