@@ -2,6 +2,21 @@
 
 Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski adı RemoteDesk. Bilgisayarlar mümkünse **doğrudan** (WebRTC) bağlanır; ağ engeli varsa Cloudflare **quick tunnel** üzerinden. Hesap, domain ya da port açma gerekmez.
 
+<p align="center"><img src="packaging/meetdesk.png" width="96" alt="Meetdesk"></p>
+
+| Toplantı penceresi: çizim, işaret, sohbet | Toplantı sayfası: bağlı olanlar ve sohbet |
+|---|---|
+| ![İzleme penceresi](docs/screenshots/izleme.png) | ![Toplantı](docs/screenshots/toplanti.png) |
+| **Bağlan:** ID ve şifre, uzak bilgisayara bağlanma | **Cihazlar:** takımlar ve gruplar |
+| ![Bağlan](docs/screenshots/baglan.png) | ![Cihazlar](docs/screenshots/cihazlar.png) |
+
+<p align="center">
+  <img src="docs/screenshots/panel.png" width="300" alt="Oturum paneli">
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/telefon.png" width="260" alt="Telefondan bağlanma">
+  <br><sub>Biri bağlanınca sağ altta açılan oturum paneli · Telefondan tarayıcıyla bağlanma</sub>
+</p>
+
 ## Kullanım
 
 `Meetdesk.exe`yi (macOS'ta `Meetdesk.app`) aç. Ana pencerede bu bilgisayarın **ID**'si ve tek kullanımlık **şifresi** görünür.
@@ -13,7 +28,7 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
 ## Özellikler
 
 ### Bağlantı
-- **Kalıcı ID** (buluşma sunucusu ayarlıysa): 9 haneli numara ya da seçtiğin bir ad (ör. `mustafa-pc`). Kayıtlı cihazlar, favoriler ve kimin çevrimiçi olduğu listede görünür.
+- **Kalıcı ID** (buluşma sunucusu ayarlıysa): 9 haneli numara ya da seçtiğin bir ad (ör. `ofis-pc`). Kayıtlı cihazlar, favoriler ve kimin çevrimiçi olduğu listede görünür.
 - **Doğrudan bağlantı:**
   - Görüntü, klavye/fare ve ses WebRTC veri kanallarıyla iki bilgisayar arasında doğrudan akar.
   - Buluşma sunucusundan yalnızca tek bir el sıkışma mesajı geçer.
@@ -143,4 +158,4 @@ Yerel arayüz (127.0.0.1, çerez anahtarlı) tünele ASLA açılmaz.
 bash scripts/build-release.sh    # sürüm paketleri -> dist/release/
 ```
 
-Sürüm betiği, macOS `.app` paketlerini `rcodesign` ile Developer ID'yle imzalar, Apple noterliğine gönderir ve onayı staple eder. Anahtarlar repo dışında, `~/.agentic-signing/apple` klasöründe durur. Hızlı yerel deneme için `MAC_SIGN=1` kullan: ad-hoc imza atılır, noterlik yapılmaz. Sürüm numarası `main.go` içindeki `appVersion`'dan alınır. İkon `go run ./cmd/mkicon` ile üretilir.
+Sürüm betiği, macOS `.app` paketlerini `rcodesign` ile Developer ID'yle imzalar, Apple noterliğine gönderir ve onayı staple eder. Anahtarlar repo dışında, `~/.agentic-signing/apple` klasöründe durur. Hızlı yerel deneme için `MAC_SIGN=1` kullan: ad-hoc imza atılır, noterlik yapılmaz. Sürüm numarası `main.go` içindeki `appVersion`'dan alınır. İkon `go run ./cmd/mkicon` ile üretilir (macOS `.icns`, Windows `.ico`, arayüz için `web/icon.png`). Windows exe'ye gömülen ikon ve sürüm bilgisi `bash scripts/winres.sh` ile `rsrc_windows_amd64.syso` dosyasına yazılır (MinGW `windres` gerekir); sürüm betiği bunu kendisi çalıştırır.

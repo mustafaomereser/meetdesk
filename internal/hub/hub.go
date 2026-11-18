@@ -35,7 +35,7 @@ var (
 func ValidID(s string) bool { return numRe.MatchString(s) || customRe.MatchString(s) }
 
 // NormalizeID, kullanıcının yazdığı ID'yi karşılaştırılabilir biçime getirir
-// ("123 456 789" -> "123456789", "Mustafa-PC" -> "mustafa-pc").
+// ("123 456 789" -> "123456789", "Ofis-PC" -> "ofis-pc").
 func NormalizeID(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	if d := strings.Map(func(r rune) rune {

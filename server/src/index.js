@@ -20,7 +20,7 @@
 //        Takım üyeleri birbirinin cihazlarını listede görür; davet kodunu bilen katılır.
 //
 // ID biçimi: 9 haneli sayı (rastgele) ya da kullanıcının seçtiği ad (harfle başlar,
-// küçük harf/rakam/tire, 4-24 karakter; ör. "mustafa-pc").
+// küçük harf/rakam/tire, 4-24 karakter; ör. "ofis-pc").
 
 const PING_STALE_MS = 100_000; // cihaz 30 sn'de bir ping atar; bu kadar sessizse çevrimdışı say
 const CONNECT_WAIT_MS = 40_000;

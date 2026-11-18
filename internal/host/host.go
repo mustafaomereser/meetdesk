@@ -215,6 +215,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /style.css", page("style.css", "text/css; charset=utf-8"))
 	mux.HandleFunc("GET /rtc.js", page("rtc.js", "text/javascript; charset=utf-8"))
 	mux.HandleFunc("GET /titlebar.js", page("titlebar.js", "text/javascript; charset=utf-8"))
+	mux.HandleFunc("GET /icon.png", page("icon.png", "image/png"))
 	// WebRTC el sıkışması (sunucusuz modda tünel üzerinden; sunuculu modda buluşma sunucusu
 	// üzerinden HandleOffer doğrudan çağrılır).
 	mux.HandleFunc("POST /rtc", func(w http.ResponseWriter, r *http.Request) {

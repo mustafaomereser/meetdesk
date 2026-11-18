@@ -35,7 +35,8 @@ if [ "$MAC_SIGN" = 2 ]; then
     [ -f "$APPLE_SIGN_DIR/$f" ] || { echo "HATA: $APPLE_SIGN_DIR/$f yok" >&2; exit 1; }
   done
 fi
-[ -f packaging/remotedesk.icns ] || go run ./cmd/mkicon
+[ -f packaging/meetdesk.icns ] || go run ./cmd/mkicon
+bash scripts/winres.sh # Windows exe: ikon + sürüm bilgisi
 
 PY=""
 for c in python python3 py; do
@@ -69,7 +70,7 @@ make_app() { # klasör — Apple Silicon + Intel tek "universal" binary
   rcodesign macho-universal-create --output "$app/Contents/MacOS/Meetdesk" "$OUT/stage/rd-arm64" "$OUT/stage/rd-amd64" >/dev/null
   rm -f "$OUT/stage/rd-arm64" "$OUT/stage/rd-amd64"
   chmod +x "$app/Contents/MacOS/Meetdesk"
-  cp packaging/remotedesk.icns "$app/Contents/Resources/remotedesk.icns"
+  cp packaging/meetdesk.icns "$app/Contents/Resources/meetdesk.icns"
   # Info.plist, Mac'te açıldığı doğrulanan syncFTP paketiyle aynı yapıda tutulur.
   cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -82,7 +83,7 @@ make_app() { # klasör — Apple Silicon + Intel tek "universal" binary
   <key>CFBundleVersion</key><string>$VERSION</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleExecutable</key><string>Meetdesk</string>
-  <key>CFBundleIconFile</key><string>remotedesk</string>
+  <key>CFBundleIconFile</key><string>meetdesk</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>12.0</string>
   <key>LSUIElement</key><false/>
