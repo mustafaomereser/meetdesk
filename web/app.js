@@ -23,7 +23,7 @@ function toast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => t.classList.remove('show'), 1600);
+  toast._t = setTimeout(() => t.classList.remove('show'), 3200);
 }
 
 async function copy(text, what) {
@@ -97,13 +97,16 @@ function render(s) {
     dot.className = 'dot ' + (s.tunnel === 'on' ? 'ok' : s.tunnel === 'error' ? 'err' : s.tunnel === 'off' ? 'off' : 'busy');
     $('tunMsg').textContent = s.tunnelMsg;
   }
+  $('netPill').title = $('tunMsg').textContent;
   $('vidDot').className = 'dot ' + (s.video === 'on' ? 'ok' : s.video === 'error' ? 'err' : 'busy');
   $('vidMsg').textContent = s.videoMsg;
+  $('vidPill').classList.toggle('hidden', s.video === 'on'); // hazırsa üstte yer kaplamasın
   renderSettings(s);
 
   renderPerms(s.perms || {});
 
   renderSessions(s.sessions || []);
+  renderMeeting(s);
 
   if (s.pending) {
     $('reqName').textContent = s.pending.name || '';
@@ -179,55 +182,175 @@ setInterval(() => {
 
 // ---- bağlı kişiler (toplantıda birden fazla) ----
 
+function initials(name) {
+  const parts = (name || '?').trim().split(/\s+/);
+  return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+
+function avatar(name, color) {
+  const a = el('span', 'avatar', initials(name));
+  a.style.setProperty('--c', color || '#777b84');
+  return a;
+}
+
 let sessKey = '';
 function renderSessions(list) {
-  $('sessionBox').classList.toggle('hidden', list.length === 0);
-  $('sessTitle').textContent = list.length === 1 ? 'Bağlı: 1 kişi' : `Bağlı: ${list.length} kişi`;
-  $('kick').textContent = list.length > 1 ? 'Hepsini çıkar' : 'Bağlantıyı kes';
-  const key = JSON.stringify(list) + '|' + conf.key();
+  const n = list.length;
+  $('navMeetCount').textContent = n;
+  $('navMeetCount').classList.toggle('hidden', n === 0);
+  $('sessionBox').classList.toggle('hidden', n === 0);
+  $('meetEmpty').classList.toggle('hidden', n > 0);
+  $('sessTitle').textContent = n === 1 ? 'Bağlı olan · 1 kişi' : `Bağlı olanlar · ${n} kişi`;
+  $('kick').textContent = n > 1 ? 'Hepsini çıkar' : 'Bağlantıyı kes';
+  const key = JSON.stringify(list) + '|' + conf.key() + '|' + (state && state.allowControl);
   if (key === sessKey) return;
   sessKey = key;
   const ul = $('sessList');
   ul.innerHTML = '';
   for (const p of list) {
-    const li = document.createElement('li');
-    const who = document.createElement('span');
-    who.className = 'who';
-    const b = document.createElement('b');
-    b.textContent = p.name || 'Uzak kullanıcı';
-    const meta = document.createElement('span');
-    meta.className = 'muted mono';
-    meta.textContent = ' ' + p.remote + ' · ';
-    const t = document.createElement('span');
-    t.className = 'muted';
-    t.dataset.since = p.since;
-    who.append(b, meta, t);
+    const li = el('li', 'person');
+    const who = el('div', 'who');
+    const nm = el('div', 'who-name', p.name || 'Uzak kullanıcı');
     const cs = conf.stateOf(p.id);
-    if (cs) {
-      const c = document.createElement('span');
-      c.className = 'call-state';
-      c.textContent = cs === 'active' ? ' · sesli' : cs === 'incoming' ? ' · arıyor' : ' · bağlanıyor';
-      who.append(c);
-    }
-    const ctl = document.createElement('label');
-    ctl.className = 'ctl-toggle';
-    ctl.title = 'Bu kişi fare ve klavyeyi kullanabilsin mi? Kapalıyken yalnızca izler (ve ekrana çizebilir).';
+    if (cs) nm.appendChild(el('span', 'tag ok', cs === 'active' ? 'sesli' : cs === 'incoming' ? 'arıyor' : 'bağlanıyor'));
+    const meta = el('div', 'who-meta');
+    meta.append(document.createTextNode(p.remote + ' · '));
+    const t = el('span', '');
+    t.dataset.since = p.since;
+    meta.appendChild(t);
+    who.append(nm, meta);
+
+    const ctl = el('label', 'ctl-toggle');
+    ctl.title = 'Bu kişi fare ve klavyeyi kullanabilsin mi? Kapalıyken yalnızca izler, çizer ve işaret eder.';
     const sw = document.createElement('input');
     sw.type = 'checkbox';
     sw.className = 'switch';
     sw.checked = !!p.control && !!(state && state.allowControl);
     sw.disabled = !(state && state.allowControl);
     sw.onchange = () => api('host/session', { id: p.id, control: sw.checked }).catch((e) => toast(e.message));
-    ctl.append(document.createTextNode('Kontrol'), sw);
-    const k = document.createElement('button');
-    k.className = 'small';
-    k.textContent = 'Çıkar';
-    k.onclick = () => api('host/kick', { id: p.id });
-    li.append(who, ctl, k);
+    ctl.append(el('span', '', 'Kontrol'), sw);
+
+    const acts = el('div', 'person-acts');
+    acts.append(
+      smallBtn('Ekranını göster', 'Bu kişiden ekranını toplantıdaki herkese açmasını iste (o onaylar)', () =>
+        api('host/askpresent', { id: p.id, name: $('myName').value.trim() }).then(() => toast('İstek gönderildi'), (e) => toast(e.message)), 'ghost'),
+      smallBtn('Çıkar', 'Bu kişinin bağlantısını kes', () => api('host/kick', { id: p.id }), 'ghost'),
+    );
+    li.append(avatar(p.name, p.color), who, ctl, acts);
     ul.appendChild(li);
   }
   conf.syncSessions(list);
 }
+
+// ---- toplantı: sohbet, dosyalar, gizlilik, paylaşılan ekran ----
+
+let chatSeen = 0;
+let chatKey = '';
+function renderMeeting(s) {
+  $('privacySw').checked = !!s.privacy;
+  $('stageBar').classList.toggle('hidden', !s.stage);
+  $('stageText').textContent = s.stage ? `${s.stage} ekranını toplantıdakilere gösteriyor.` : '';
+
+  const chat = s.chat || [];
+  const ck = chat.length + ':' + (chat.length ? chat[chat.length - 1].ts : 0);
+  if (ck !== chatKey) {
+    chatKey = ck;
+    const box = $('chatList');
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.innerHTML = '';
+    if (!chat.length) box.appendChild(el('div', 'chat-empty', 'Henüz mesaj yok. Yazdığın mesajı bağlı herkes görür.'));
+    let prev = null;
+    for (const m of chat) {
+      const row = el('div', 'msg' + (m.id === 0 ? ' mine' : ''));
+      if (!prev || prev.id !== m.id || m.ts - prev.ts > 120000) {
+        const head = el('div', 'msg-head');
+        const dot = el('span', 'msg-dot');
+        dot.style.background = m.c;
+        const time = new Date(m.ts).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        head.append(dot, el('b', '', m.id === 0 ? m.n + ' (sen)' : m.n), el('span', 'msg-time', time));
+        row.appendChild(head);
+      }
+      row.appendChild(el('div', 'msg-text', m.text));
+      box.appendChild(row);
+      prev = m;
+    }
+    if (atBottom || chat.length > chatSeen) box.scrollTop = box.scrollHeight;
+    if (chat.length > chatSeen && chatSeen > 0 && currentPage !== 'meeting') {
+      const last = chat[chat.length - 1];
+      if (last.id !== 0) toast(`${last.n}: ${last.text.slice(0, 80)}`);
+    }
+    chatSeen = chat.length;
+  }
+
+  const recv = s.received || [];
+  $('recvBox').classList.toggle('hidden', !recv.length);
+  const rk = JSON.stringify(recv.map((f) => f.path));
+  if ($('recvList').dataset.k !== rk) {
+    const newest = recv[recv.length - 1];
+    if ($('recvList').dataset.k && newest) toast(`${newest.from} bir dosya gönderdi: ${newest.name}`);
+    $('recvList').dataset.k = rk;
+    $('recvList').innerHTML = '';
+    for (const f of recv.slice().reverse()) {
+      const li = el('li', 'recv-item');
+      li.append(el('span', 'recv-name', f.name), el('span', 'recv-meta', `${f.from} · ${fmtSize(f.size)}`));
+      li.appendChild(smallBtn('Göster', 'Dosyayı klasörde göster', () => api('files/reveal', { path: f.path }).catch((e) => toast(e.message)), 'ghost'));
+      $('recvList').appendChild(li);
+    }
+  }
+}
+
+function fmtSize(n) {
+  if (n < 1024) return n + ' B';
+  if (n < 1 << 20) return (n / 1024).toFixed(0) + ' KB';
+  if (n < 1 << 30) return (n / (1 << 20)).toFixed(1) + ' MB';
+  return (n / (1 << 30)).toFixed(2) + ' GB';
+}
+
+$('chatForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const text = $('chatInput').value.trim();
+  if (!text) return;
+  try {
+    await api('chat', { text, name: $('myName').value.trim() });
+    $('chatInput').value = '';
+  } catch (err) { toast(err.message); }
+};
+
+$('privacySw').onchange = (e) => api('host/privacy', { on: e.target.checked }).catch((err) => { toast(err.message); e.target.checked = !e.target.checked; });
+$('stageStop').onclick = () => api('host/stagestop').catch((e) => toast(e.message));
+$('recvFolder').onclick = (e) => { e.preventDefault(); api('files/reveal', {}).catch((err) => toast(err.message)); };
+
+async function sendFiles(files) {
+  for (const f of files) {
+    toast(`Gönderiliyor: ${f.name}`);
+    try {
+      const r = await fetch('/api/files/send?sid=0&name=' + encodeURIComponent(f.name), { method: 'POST', body: f });
+      if (!r.ok) throw new Error((await r.text()).trim());
+      toast(`Gönderildi: ${f.name}`);
+    } catch (err) { toast(err.message || 'Dosya gönderilemedi'); }
+  }
+}
+$('fileBtn').onclick = () => $('fileInput').click();
+$('fileInput').onchange = (e) => { sendFiles([...e.target.files]); e.target.value = ''; };
+(function dragDrop() {
+  let depth = 0;
+  const zone = $('dropZone');
+  const active = () => state && (state.sessions || []).length > 0;
+  document.addEventListener('dragenter', (e) => {
+    if (!active() || !e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
+    depth++;
+    zone.classList.remove('hidden');
+  });
+  document.addEventListener('dragleave', () => { if (--depth <= 0) { depth = 0; zone.classList.add('hidden'); } });
+  document.addEventListener('dragover', (e) => { if (active()) e.preventDefault(); });
+  document.addEventListener('drop', (e) => {
+    depth = 0;
+    zone.classList.add('hidden');
+    if (!active() || !e.dataTransfer || !e.dataTransfer.files.length) return;
+    e.preventDefault();
+    sendFiles([...e.dataTransfer.files]);
+  });
+})();
 
 // ---- bu bilgisayar ----
 
@@ -257,7 +380,7 @@ $('inkClear').onclick = () => api('host/inkclear').then(() => toast('Çizimler s
 
 // ---- ayarlar ----
 
-const SWITCHES = ['online', 'autoStart', 'onlineAtStart', 'allowBrowser', 'allowControl', 'allowClipboard', 'concurrent'];
+const SWITCHES = ['online', 'autoStart', 'onlineAtStart', 'allowBrowser', 'allowControl', 'allowClipboard', 'allowFiles', 'concurrent'];
 for (const k of SWITCHES) {
   $(k).onchange = (e) => api('settings', { [k]: e.target.checked }).catch((err) => { toast(err.message); if (state) render(state); });
 }
@@ -298,6 +421,7 @@ function renderSettings(s) {
   $('appVersion').textContent = s.version || '';
   const u = s.update;
   $('updateBar').classList.toggle('hidden', !u);
+  $('navUpd').classList.toggle('hidden', !u || u.status !== 'available');
   if (u) {
     $('updText').textContent = u.status === 'available'
       ? `Yeni sürüm var: ${u.version}` + (u.msg ? ' · ' + u.msg : '')
@@ -309,17 +433,32 @@ function renderSettings(s) {
   }
 }
 
-function openSettings() {
-  $('settings').classList.remove('hidden');
-  $('closeSettings').focus();
+// ---- sayfalar ----
+// Sol menü (dar ekranda alttaki sekme çubuğu) sayfalar arasında geçer; adres çubuğundaki
+// #home / #devices / #meeting / #settings ile hatırlanır. Panel modunda (sağ alttaki küçük
+// oturum penceresi) yalnızca Toplantı sayfası gösterilir.
+const panelMode = new URLSearchParams(location.search).get('panel') === '1';
+const PAGES = ['home', 'devices', 'meeting', 'settings'];
+let currentPage = '';
+function showPage(name) {
+  if (panelMode) name = 'meeting';
+  if (!PAGES.includes(name)) name = 'home';
+  currentPage = name;
+  for (const p of PAGES) $('page-' + p).classList.toggle('hidden', p !== name);
+  for (const a of document.querySelectorAll('.nav')) a.classList.toggle('on', a.dataset.page === name);
+  if (name === 'meeting') chatSeen = (state && state.chat || []).length;
+  document.querySelector('.content').scrollTop = 0;
 }
-function closeSettings() { $('settings').classList.add('hidden'); }
-$('openSettings').onclick = openSettings;
-$('closeSettings').onclick = closeSettings;
-$('settings').onclick = (e) => { if (e.target === $('settings')) closeSettings(); };
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !$('settings').classList.contains('hidden')) closeSettings();
-});
+window.addEventListener('hashchange', () => showPage(location.hash.slice(1)));
+if (panelMode) {
+  document.body.classList.add('panel');
+  document.title = 'Meetdesk · Oturum';
+  $('openMain').classList.remove('hidden');
+  $('openMain').onclick = () => api('ui/main').catch(() => {});
+}
+showPage(location.hash.slice(1) || 'home');
+$('teamCreateBtn').onclick = () => { teamForm = teamForm === 'create' ? '' : 'create'; renderPeers(); };
+$('teamJoinBtn').onclick = () => { teamForm = teamForm === 'join' ? '' : 'join'; renderPeers(); };
 
 $('renameForm').onsubmit = async (e) => {
   e.preventDefault();
@@ -587,7 +726,9 @@ function deviceRow(d, opts) {
   row.appendChild(text);
 
   const acts = el('div', 'peer-acts');
-  if (opts.team) {
+  if (opts.compact) {
+    // Son bağlantılar: düzenleme yok
+  } else if (opts.team) {
     if (opts.canKick && !d.self) {
       acts.append(iconBtn('✕', 'Takımdan çıkar', () => {
         if (confirmInline(row, `${d.label || fmtId(d.id)} takımdan çıkarılsın mı?`, () => teamOp({ op: 'kick', tid: opts.tid, id: d.id }))) return;
@@ -698,33 +839,39 @@ function renderTeam(box, t) {
   for (const m of t.members) box.appendChild(deviceRow(m, { team: true, tid: t.tid, canKick: t.owner }));
 }
 
+function renderRecent() {
+  const list = peers.slice().sort((a, b) => (b.last || 0) - (a.last || 0)).filter((p) => p.last).slice(0, 4);
+  $('recentBox').classList.toggle('hidden', !list.length || !(state && state.hub));
+  const box = $('recentList');
+  box.innerHTML = '';
+  for (const p of list) box.appendChild(deviceRow(p, { compact: true }));
+}
+
 function renderPeers() {
+  renderRecent();
   const box = $('peers');
   box.innerHTML = '';
+  const hub = !state || !!state.hub;
+  $('teamActs').classList.toggle('hidden', !hub);
   // Sunucusuz modda kalıcı ID yok: kayıtlı cihaz listesi ve takımlar gösterilmez.
-  if (state && !state.hub) return;
+  const empty = !hub || (!peers.length && !teams.length && !teamForm);
+  $('devicesEmpty').classList.toggle('hidden', !empty);
+  $('devicesEmptyText').textContent = hub
+    ? 'Bir bilgisayara bağlandığında burada listelenir. Takım kurarak ekibinin bilgisayarlarını tek listede toplayabilirsin.'
+    : 'Cihaz listesi ve takımlar buluşma sunucusuyla çalışır; bu sürüm sunucusuz modda.';
+  box.classList.toggle('hidden', empty);
+  if (!hub) return;
 
-  // Takımlar
-  const head = el('div', 'recent-head');
-  head.append(el('span', '', 'Takımlar'));
-  const ha = el('div', 'head-acts');
-  ha.append(
-    smallBtn('Takım oluştur', 'Yeni takım: davet koduyla başka bilgisayarlar katılır', () => { teamForm = teamForm === 'create' ? '' : 'create'; renderPeers(); }),
-    smallBtn('Koda katıl', 'Davet koduyla bir takıma katıl', () => { teamForm = teamForm === 'join' ? '' : 'join'; renderPeers(); }),
-  );
-  head.appendChild(ha);
-  box.appendChild(head);
   teamForms(box);
-  if (!teams.length && !teamForm) {
-    box.appendChild(el('p', 'hint empty-hint', 'Takım kurarak ofisteki ya da ailedeki bilgisayarları tek listede toplayabilir, hangisinin açık olduğunu görebilirsin.'));
+  if (teams.length) {
+    const head = el('div', 'list-head', 'Takımlar');
+    box.appendChild(head);
   }
   for (const t of teams) renderTeam(box, t);
 
   // Kendi cihaz listem: gruplara göre
   if (!peers.length) return;
-  const h2 = el('div', 'recent-head');
-  h2.append(el('span', '', 'Cihazlarım'));
-  box.appendChild(h2);
+  box.appendChild(el('div', 'list-head', 'Cihazlarım'));
   const groups = new Map();
   for (const p of peers) {
     const g = p.group || '';
@@ -935,7 +1082,7 @@ class Conference {
     const btn = $('hCall');
     const active = this.on;
     btn.classList.toggle('danger', active);
-    btn.textContent = active ? 'Görüşmeyi kapat' : 'Sesli görüşme';
+    if (!panelMode) btn.textContent = active ? 'Görüşmeyi kapat' : 'Görüşmeyi başlat';
     $('hMute').classList.toggle('hidden', !active);
     if (!active) $('hMute').textContent = 'Sessize al';
     const bar = $('hCallBar');
@@ -945,7 +1092,7 @@ class Conference {
       $('hAccept').classList.remove('hidden');
       $('hReject').textContent = 'Reddet';
       bar.classList.remove('hidden');
-      try { new Notification('RemoteDesk', { body: $('hCallText').textContent }); } catch {}
+      try { new Notification('Meetdesk', { body: $('hCallText').textContent }); } catch {}
     } else {
       bar.classList.add('hidden');
     }
@@ -954,13 +1101,19 @@ class Conference {
 }
 
 const conf = new Conference();
+if (panelMode) {
+  // Sesli görüşme ana pencerede yürür (iki pencere aynı aramayı yanıtlamasın).
+  $('hCall').textContent = 'Ana pencerede aç';
+  $('hCall').onclick = () => api('ui/main').catch(() => {});
+}
 
-$('hCall').onclick = () => { if (conf.on) conf.hangup(); else conf.start(); };
+if (!panelMode) $('hCall').onclick = () => { if (conf.on) conf.hangup(); else conf.start(); };
 $('hMute').onclick = (e) => { e.target.textContent = conf.toggleMute() ? 'Sesi aç' : 'Sessize al'; };
 $('hAccept').onclick = () => conf.acceptIncoming();
 $('hReject').onclick = () => conf.rejectIncoming();
 
 (function rtcEvents() {
+  if (panelMode) return;
   const es = new EventSource('/api/rtc/events');
   es.onmessage = (e) => {
     let m;

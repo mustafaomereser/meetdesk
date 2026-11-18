@@ -636,3 +636,178 @@ body.touch.fs .vbar .vinfo { display: none; }
 /* Menü açıkken üst çubuk (ve içindeki sayfa) karartmanın üstünde kalsın:
    esnek öğe olarak .vbar kendi katman bağlamını oluşturur. */
 body.menu-open .vbar { z-index: 70; }
+
+/* =====================================================================
+   Uygulama kabuğu (ana pencere): üst bar + sol menü + sayfa içeriği.
+   Dar pencerede menü alttaki sekme çubuğuna dönüşür. Panel modu (sağ alttaki
+   oturum penceresi) yalnızca Toplantı sayfasını tek sütunda gösterir.
+   ===================================================================== */
+
+body.app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+body.app .top { position: relative; flex: none; height: 48px; padding: 0 12px 0 16px; gap: 8px; border-bottom: 1px solid var(--line); background: var(--bg); }
+body.app .top .brand { margin-right: auto; font-size: 14px; }
+body.app .top .pill { height: 26px; font-size: 11.5px; max-width: 320px; }
+body.app .top .pill.subtle { color: var(--faint); }
+body.framed.app .top { padding-right: 0; }
+body.framed.app .winctl { margin: 0 0 0 6px; }
+
+.shell { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
+.side {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 14px 10px; border-right: 1px solid var(--line); background: var(--bg);
+  overflow-y: auto;
+}
+.nav {
+  display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 12px;
+  border-radius: 10px; color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500;
+}
+.nav svg { width: 18px; height: 18px; flex: none; }
+.nav:hover { background: var(--frame); color: var(--text); }
+.nav.on { background: var(--surface); color: var(--text); }
+.nav .count {
+  margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 9999px;
+  background: var(--ok); color: #0b2a1b; font-size: 11.5px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.nav .count.dot-count { min-width: 8px; width: 8px; height: 8px; padding: 0; background: var(--accent); }
+.side-foot { margin-top: auto; padding-top: 10px; }
+.side-foot button { width: 100%; justify-content: flex-start; }
+
+.content { overflow-y: auto; min-width: 0; padding: 28px 32px 48px; }
+.content > * { max-width: 1080px; margin-left: auto; margin-right: auto; }
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.page-head h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.02em; line-height: 1.2; }
+.page-head .lead { margin: 6px 0 0; color: var(--muted); font-size: 14px; max-width: 620px; }
+.page-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.card.plain { padding: 12px; gap: 8px; }
+.cred-row.big .cred-value { font-size: 24px; letter-spacing: .02em; }
+.ic { width: 15px; height: 15px; flex: none; }
+.sub-head { display: flex; align-items: center; justify-content: space-between; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+.link { color: var(--accent); text-decoration: none; text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 12.5px; }
+.link:hover { text-decoration: underline; }
+.list-head { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); padding: 10px 6px 2px; }
+.list-head:first-child { padding-top: 2px; }
+.recent { border-top: 1px solid var(--line); padding-top: 14px; }
+.row-acts { display: flex; gap: 6px; flex: none; }
+.row.static { cursor: default; }
+
+.updbar { width: 100%; margin: 0 auto 16px; }
+
+/* boş durum */
+.empty {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px;
+  padding: 56px 24px; border: 1px dashed var(--line-2); border-radius: var(--r-card); background: var(--frame);
+}
+.empty-ic { width: 36px; height: 36px; color: var(--faint); margin-bottom: 4px; }
+.empty-title { font-size: 16px; font-weight: 600; }
+.empty-text { color: var(--muted); font-size: 13.5px; max-width: 440px; }
+.button-link {
+  margin-top: 8px; display: inline-flex; align-items: center; height: 34px; padding: 0 16px;
+  border-radius: 9999px; background: #fff; color: #111; font-weight: 500; text-decoration: none; font-size: 13.5px;
+}
+
+/* toplantı */
+.meet { display: flex; flex-direction: column; gap: 14px; }
+.meet-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.meet-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px 10px 16px; border-radius: 12px; font-size: 13.5px;
+  background: rgba(61, 214, 140, .07); border: 1px solid rgba(61, 214, 140, .3);
+}
+.banner .spacer { flex: 1; }
+.people { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.person { display: flex; align-items: center; gap: 12px; padding: 10px 2px; flex-wrap: wrap; }
+.person + .person { border-top: 1px solid var(--line); }
+.avatar {
+  width: 34px; height: 34px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; font-size: 12.5px; font-weight: 700; color: #fff;
+  background: color-mix(in srgb, var(--c) 30%, transparent); border: 2px solid var(--c);
+}
+.who { flex: 1; min-width: 120px; }
+.who-name { font-weight: 600; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
+.who-meta { font-size: 12px; color: var(--faint); font-family: var(--mono); }
+.tag.ok { background: rgba(61, 214, 140, .14); color: var(--ok); }
+.ctl-toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.person-acts { display: flex; gap: 2px; }
+.recv { border-top: 1px solid var(--line); padding-top: 12px; }
+.recv-list { list-style: none; margin: 0; padding: 0; }
+.recv-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.recv-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.recv-meta { font-size: 12px; color: var(--faint); white-space: nowrap; }
+
+.chat-card { position: sticky; top: 0; height: min(620px, calc(100dvh - 200px)); min-height: 360px; padding: 18px; }
+.chat-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding-right: 4px; }
+.chat-empty { margin: auto; color: var(--faint); font-size: 13px; text-align: center; max-width: 260px; }
+.msg { padding: 1px 0; }
+.msg-head { display: flex; align-items: center; gap: 7px; margin-top: 10px; font-size: 12.5px; }
+.msg-head b { font-weight: 600; }
+.msg-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.msg-time { color: var(--faint); font-size: 11.5px; margin-left: auto; }
+.msg-text { padding-left: 16px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13.5px; color: var(--text); }
+.chat-form { display: flex; gap: 8px; }
+.chat-form input { flex: 1; }
+.icon-btn { width: 40px; height: 40px; padding: 0; flex: none; }
+
+.dropzone {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center;
+  background: rgba(17, 17, 19, .82); backdrop-filter: blur(4px);
+  border: 2px dashed var(--accent); font-size: 18px; font-weight: 600; pointer-events: none;
+}
+
+.settings { display: flex; flex-direction: column; gap: 16px; max-width: 780px; }
+
+/* orta genişlik */
+@media (max-width: 1000px) {
+  .meet-grid { grid-template-columns: minmax(0, 1fr); }
+  .chat-card { position: static; height: 460px; }
+}
+@media (max-width: 900px) {
+  .cols { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* dar pencere: alt sekme çubuğu */
+@media (max-width: 760px) {
+  .shell { display: block; position: relative; height: 100%; }
+  .content { height: 100%; padding: 20px 16px calc(84px + env(safe-area-inset-bottom)); }
+  .side {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
+    flex-direction: row; justify-content: space-around; gap: 0;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    border-right: 0; border-top: 1px solid var(--line); background: rgba(17, 17, 19, .96);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); overflow: visible;
+  }
+  .nav { flex: 1; flex-direction: column; justify-content: center; gap: 3px; height: 54px; padding: 0 4px; font-size: 11px; position: relative; }
+  .nav .count { position: absolute; top: 4px; left: calc(50% + 6px); margin: 0; min-width: 18px; height: 18px; font-size: 10.5px; }
+  .nav .count.dot-count { top: 8px; left: calc(50% + 8px); }
+  .side-foot { display: none; }
+  .page-head h1 { font-size: 24px; }
+  body.app .top .pill { max-width: 52vw; }
+  body.app .top .pill.subtle { display: none; }
+  .card { padding: 18px; }
+  .person-acts { width: 100%; justify-content: flex-end; }
+}
+
+/* sağ alttaki oturum paneli */
+body.panel .side { display: none; }
+body.panel .shell { display: block; height: 100%; }
+body.panel .content { height: 100%; padding: 14px 14px 20px; }
+body.panel .page-head { margin-bottom: 12px; }
+body.panel .page-head h1 { font-size: 18px; }
+body.panel .page-head .lead { display: none; }
+body.panel .top .pill { display: none; }
+body.panel .meet-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+body.panel .meet-col { gap: 12px; }
+body.panel .card { padding: 14px; gap: 12px; }
+body.panel .chat-card { position: static; height: 340px; min-height: 0; }
+body.panel .row-hint { display: none; }
+body.panel .person-acts { width: 100%; justify-content: flex-end; }
+body.panel .updbar { display: none; }
+body.panel .meet-grid { display: flex; flex-direction: column; }
+body.panel .meet-col { display: contents; }
+body.panel .meet-col > .card:first-child { order: 1; }
+body.panel .chat-card { order: 2; }
+body.panel .meet-col > .card:last-child { order: 3; }

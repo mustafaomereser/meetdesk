@@ -3,289 +3,427 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>RemoteDesk</title>
+  <title>Meetdesk</title>
   <link rel="stylesheet" href="style.css">
   <script src="titlebar.js"></script>
 </head>
 <body class="app">
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 005.66 0l3-3a4 4 0 00-5.66-5.66l-1 1M14 10a4 4 0 00-5.66 0l-3 3a4 4 0 005.66 5.66l1-1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+      <symbol id="i-devices" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M9 20h6M12 16.5V20"/></g></symbol>
+      <symbol id="i-meet" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><circle cx="17" cy="9.5" r="2.4"/><path d="M16 14.3c2.3.1 4 1.6 4.5 4.2"/></g></symbol>
+      <symbol id="i-gear" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></g></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2h2"/></g></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2.5-6.5L4 12z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+      <symbol id="i-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5M12 18v-6M9 15l3-3 3 3"/></g></symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 15a2 2 0 01-2 2H8l-4 4V6a2 2 0 012-2h12a2 2 0 012 2z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    </defs>
+  </svg>
+
   <header class="top" data-titlebar>
-    <div class="brand"><span class="logo"></span>RemoteDesk</div>
-    <div class="top-status">
-      <span class="pill"><span id="tunDot" class="dot busy"></span><span id="tunMsg">Başlatılıyor…</span></span>
-      <span class="pill"><span id="vidDot" class="dot busy"></span><span id="vidMsg">H.264 hazırlanıyor…</span></span>
-    </div>
-    <button id="openSettings" class="small">Ayarlar</button>
-    <button id="quit" class="ghost small">Çıkış</button>
+    <div class="brand"><span class="logo"></span>Meetdesk</div>
+    <span class="pill" id="netPill" title=""><span id="tunDot" class="dot busy"></span><span id="tunMsg">Başlatılıyor…</span></span>
+    <span class="pill subtle" id="vidPill"><span id="vidDot" class="dot busy"></span><span id="vidMsg">Görüntü hazırlanıyor…</span></span>
   </header>
 
-  <div id="updateBar" class="updbar hidden">
-    <span id="updText"></span>
-    <span class="spacer"></span>
-    <a id="updNotes" href="#" target="_blank" rel="noopener">Neler yeni?</a>
-    <button id="updInstall" class="primary small">Güncelle</button>
-  </div>
+  <div class="shell">
+    <nav class="side" aria-label="Bölümler">
+      <a href="#home" class="nav" data-page="home"><svg><use href="#i-link"/></svg><span>Bağlan</span></a>
+      <a href="#devices" class="nav" data-page="devices"><svg><use href="#i-devices"/></svg><span>Cihazlar</span></a>
+      <a href="#meeting" class="nav" data-page="meeting"><svg><use href="#i-meet"/></svg><span>Toplantı</span><b id="navMeetCount" class="count hidden"></b></a>
+      <a href="#settings" class="nav" data-page="settings"><svg><use href="#i-gear"/></svg><span>Ayarlar</span><b id="navUpd" class="count dot-count hidden"></b></a>
+      <div class="side-foot">
+        <button id="quit" class="ghost small" type="button">Uygulamadan çık</button>
+      </div>
+    </nav>
 
-  <main class="grid">
-    <!-- ---- bu bilgisayar ---- -->
-    <section class="card">
-      <div class="card-head">
-        <h2>Bu bilgisayar</h2>
-        <p>Başka biri bağlanmak isterse ona ID'yi ver. Şifreyi de verirsen onay beklemeden bağlanır.</p>
+    <main class="content">
+      <div id="updateBar" class="updbar hidden">
+        <span id="updText"></span>
+        <span class="spacer"></span>
+        <a id="updNotes" href="#" target="_blank" rel="noopener">Neler yeni?</a>
+        <button id="updInstall" class="primary small">Güncelle</button>
       </div>
 
-      <div class="cred">
-        <div class="cred-label">ID</div>
-        <div class="cred-row">
-          <span id="myId" class="cred-value mono">—</span>
-          <div class="cred-actions">
-            <button class="small" id="idCopy">Kopyala</button>
-            <button class="small" id="tunBtn">Tüneli aç</button>
+      <!-- ================= BAĞLAN ================= -->
+      <section class="page" id="page-home">
+        <div class="page-head">
+          <div>
+            <h1>Bağlan</h1>
+            <p class="lead">ID'ni paylaşarak bu bilgisayara bağlantı al ya da başka bir bilgisayara bağlan.</p>
           </div>
         </div>
-        <div id="idHint" class="hint"></div>
-      </div>
-
-      <div class="cred">
-        <div class="cred-label">Şifre</div>
-        <div class="cred-row">
-          <span id="myPw" class="cred-value mono">—</span>
-          <div class="cred-actions">
-            <button class="small" id="pwShow">Göster</button>
-            <button class="small" id="pwCopy">Kopyala</button>
-            <button class="small" id="pwNew" title="Yeni rastgele şifre üret">Yenile</button>
-            <button class="small" id="pwEdit" title="Kendi şifreni belirle">Değiştir</button>
-          </div>
-        </div>
-        <form id="pwForm" class="pwform hidden">
-          <input id="pwInput" type="text" minlength="6" placeholder="En az 6 karakter" autocomplete="off">
-          <button class="primary small" type="submit">Kaydet</button>
-          <button class="ghost small" type="button" id="pwCancel">Vazgeç</button>
-        </form>
-      </div>
-
-      <div id="warnings"></div>
-
-      <div id="sessionBox" class="session hidden">
-        <div class="session-head">
-          <span class="dot ok"></span>
-          <span id="sessTitle" class="session-title"></span>
-          <span class="spacer"></span>
-          <button id="inkClear" class="small" title="Bağlananların ekrana çizdiklerini sil">Çizimleri sil</button>
-          <button id="hCall" class="small" title="Bağlı herkesle sesli konuş (toplantı)">Sesli görüşme</button>
-          <button id="hMute" class="small hidden">Sessize al</button>
-          <button id="kick" class="danger small">Hepsini çıkar</button>
-        </div>
-        <ul id="sessList" class="sess-list"></ul>
-        <div id="hCallBar" class="callbar inbox hidden">
-          <span id="hCallText"></span>
-          <span class="spacer"></span>
-          <span class="call-btns"><button id="hAccept" class="primary small">Kabul et</button>
-          <button id="hReject" class="small">Reddet</button></span>
-        </div>
-      </div>
-
-      <div class="rows">
-        <label class="row">
-          <span class="row-text">
-            <span class="row-title">Gelen bağlantılara açık</span>
-            <span class="row-hint" id="onlineHint">Kapalıyken kimse bu bilgisayara bağlanamaz.</span>
-          </span>
-          <input type="checkbox" class="switch" id="online">
-        </label>
-      </div>
-    </section>
-
-    <!-- ---- uzak bilgisayar ---- -->
-    <section class="card">
-      <div class="card-head">
-        <h2>Uzak bilgisayara bağlan</h2>
-        <p>ID'yi gir. Şifreyi biliyorsan doğrudan bağlanırsın; boş bırakırsan karşı taraf isteğini onaylar.</p>
-      </div>
-      <form id="connectForm" class="form" autocomplete="off">
-        <div class="field">
-          <label for="remoteId">ID</label>
-          <input id="remoteId" type="text" placeholder="123 456 789" spellcheck="false" required>
-        </div>
-        <div class="field">
-          <label for="remotePw">Şifre <span class="opt">isteğe bağlı</span></label>
-          <input id="remotePw" type="password" placeholder="Boş bırakırsan bağlantı isteği gider" autocomplete="off">
-        </div>
-        <div class="field">
-          <label for="myName">Adın</label>
-          <input id="myName" type="text" maxlength="32" spellcheck="false" placeholder="Adın">
-          <span class="hint">Karşı tarafta imlecinin yanında görünür.</span>
-        </div>
-        <button class="primary block" type="submit" id="connectBtn">Bağlantı isteği gönder</button>
-        <div id="connectErr" class="error-text"></div>
-      </form>
-      <div id="peers" class="peers"></div>
-    </section>
-  </main>
-
-  <!-- ---- ayarlar ---- -->
-  <div id="settings" class="modal hidden">
-    <div class="dialog sheet" role="dialog" aria-labelledby="setTitle">
-      <div class="sheet-head">
-        <h3 id="setTitle">Ayarlar</h3>
-        <button id="closeSettings" class="icon" title="Kapat (Esc)">✕</button>
-      </div>
-      <div class="sheet-body">
-
-        <section class="set">
-          <h4>Kimlik</h4>
-          <div class="rows">
-            <div class="row static">
-              <span class="row-text">
-                <span class="row-title">Bu bilgisayarın ID'si</span>
-                <span class="row-hint" id="setIdHint">Sunucuya bağlanınca görünür.</span>
-              </span>
-              <span id="setId" class="mono strong">—</span>
-            </div>
-            <form class="row static col" id="renameForm">
-              <span class="row-text">
-                <span class="row-title">ID'yi değiştir</span>
-                <span class="row-hint">Kendi ID'ni seç (harfle başlar, küçük harf, rakam ve tire; 4-24 karakter) ya da rastgele yeni bir numara al. Eski ID ile artık bağlanılamaz.</span>
-              </span>
-              <div class="inline">
-                <input id="renameInput" type="text" placeholder="ör. mustafa-pc" spellcheck="false" autocomplete="off" maxlength="24">
-                <button class="small" type="submit">Kaydet</button>
-                <button class="small ghost" type="button" id="renameRandom">Rastgele</button>
+        <div class="cols">
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2>Bu bilgisayar</h2>
+                <p>Bağlanacak kişiye ID'ni ver. Şifreyi de verirsen onay beklemeden bağlanır.</p>
               </div>
-            </form>
-          </div>
-        </section>
-
-        <section class="set">
-          <h4>Erişim</h4>
-          <div class="rows">
-            <label class="row">
-              <span class="row-text">
-                <span class="row-title">Bilgisayar açılınca başlat</span>
-                <span class="row-hint">Oturum açınca RemoteDesk simge durumunda kendiliğinden başlar; uzaktan bağlanmak için bilgisayarın başında olman gerekmez.</span>
-              </span>
-              <input type="checkbox" class="switch" id="autoStart">
-            </label>
-            <label class="row">
-              <span class="row-text">
-                <span class="row-title">Uygulama açılınca bağlantılara açık olsun</span>
-                <span class="row-hint">Kapalıysa her açılışta "Gelen bağlantılara açık" anahtarını elle açman gerekir.</span>
-              </span>
-              <input type="checkbox" class="switch" id="onlineAtStart">
-            </label>
-            <label class="row">
-              <span class="row-text">
-                <span class="row-title">Tarayıcıdan erişime izin ver</span>
-                <span class="row-hint" id="browserHint">Uygulaması olmayan biri tarayıcıdan şifreyle bağlanabilir.</span>
-              </span>
-              <input type="checkbox" class="switch" id="allowBrowser">
-            </label>
-            <div class="row static hidden" id="browserLinkRow">
-              <span class="row-text">
-                <span class="row-title">Tarayıcı adresi</span>
-                <span class="row-hint mono" id="browserLink"></span>
-              </span>
-              <button class="small" id="browserCopy" type="button">Kopyala</button>
             </div>
-          </div>
-        </section>
-
-        <section class="set">
-          <h4>Sabit şifre <span class="muted small-n">gözetimsiz erişim</span></h4>
-          <div class="rows">
-            <form class="row static col" id="fixedForm">
-              <span class="row-text">
-                <span class="row-title" id="fixedState">Ayarlı değil</span>
-                <span class="row-hint">Değişmeyen bir şifre: bunu bilen kişi, sen bilgisayarın başında olmasan da onay beklemeden bağlanır. Tek kullanımlık şifre de çalışmaya devam eder. En az 8 karakter; yalnızca özeti saklanır.</span>
-              </span>
-              <div class="inline">
-                <input id="fixedInput" type="password" placeholder="Yeni sabit şifre" autocomplete="new-password" minlength="8">
-                <button class="small" type="submit" id="fixedSave">Kaydet</button>
-                <button class="small danger hidden" type="button" id="fixedRemove">Kaldır</button>
+            <div class="cred">
+              <div class="cred-label">ID</div>
+              <div class="cred-row big">
+                <span id="myId" class="cred-value mono">—</span>
+                <div class="cred-actions">
+                  <button class="small" id="idCopy" title="ID'yi kopyala"><svg class="ic"><use href="#i-copy"/></svg>Kopyala</button>
+                  <button class="small" id="tunBtn">Tüneli aç</button>
+                </div>
               </div>
+              <div id="idHint" class="hint"></div>
+            </div>
+            <div class="cred">
+              <div class="cred-label">Şifre</div>
+              <div class="cred-row">
+                <span id="myPw" class="cred-value mono">—</span>
+                <div class="cred-actions">
+                  <button class="small ghost" id="pwShow">Göster</button>
+                  <button class="small" id="pwCopy">Kopyala</button>
+                  <button class="small ghost" id="pwNew" title="Yeni rastgele şifre üret">Yenile</button>
+                  <button class="small ghost" id="pwEdit" title="Kendi şifreni belirle">Değiştir</button>
+                </div>
+              </div>
+              <form id="pwForm" class="pwform hidden">
+                <input id="pwInput" type="text" minlength="6" placeholder="En az 6 karakter" autocomplete="off">
+                <button class="primary small" type="submit">Kaydet</button>
+                <button class="ghost small" type="button" id="pwCancel">Vazgeç</button>
+              </form>
+            </div>
+            <div id="warnings"></div>
+            <div class="rows">
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Gelen bağlantılara açık</span>
+                  <span class="row-hint" id="onlineHint">Kapalıyken kimse bu bilgisayara bağlanamaz.</span>
+                </span>
+                <input type="checkbox" class="switch" id="online">
+              </label>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <div>
+                <h2>Uzak bilgisayara bağlan</h2>
+                <p>Şifreyi biliyorsan doğrudan bağlanırsın; boş bırakırsan karşı taraf isteğini onaylar.</p>
+              </div>
+            </div>
+            <form id="connectForm" class="form" autocomplete="off">
+              <div class="field">
+                <label for="remoteId">ID</label>
+                <input id="remoteId" type="text" placeholder="123 456 789" spellcheck="false" required>
+              </div>
+              <div class="field">
+                <label for="remotePw">Şifre <span class="opt">isteğe bağlı</span></label>
+                <input id="remotePw" type="password" placeholder="Boş bırakırsan bağlantı isteği gider" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="myName">Adın</label>
+                <input id="myName" type="text" maxlength="32" spellcheck="false" placeholder="Adın">
+                <span class="hint">Toplantıda ve karşı tarafın ekranında bu adla görünürsün.</span>
+              </div>
+              <button class="primary block" type="submit" id="connectBtn">Bağlantı isteği gönder</button>
+              <div id="connectErr" class="error-text"></div>
             </form>
-          </div>
-        </section>
-
-        <section class="set">
-          <h4>Bağlanan kişinin izinleri</h4>
-          <div class="rows">
-            <label class="row">
-              <span class="row-text">
-                <span class="row-title">Fare ve klavye</span>
-                <span class="row-hint">Kapalıyken bağlanan kişi yalnızca izler.</span>
-              </span>
-              <input type="checkbox" class="switch" id="allowControl">
-            </label>
-            <label class="row">
-              <span class="row-text">
-                <span class="row-title">Pano paylaşımı</span>
-                <span class="row-hint">Kopyalanan metin iki bilgisayar arasında aktarılır.</span>
-              </span>
-              <input type="checkbox" class="switch" id="allowClipboard">
-            </label>
-            <label class="row">
-              <span class="row-text">
-                <span class="row-title">Aynı anda bağlanabilecek kişi</span>
-                <span class="row-hint">Toplantı ve sunum için: herkes aynı ekranı görür, ekrana çizebilir. Fare/klavye iznini kişi başına kapatabilirsin.</span>
-              </span>
-              <select id="maxViewers" class="compact">
-                <option value="1">1 kişi</option>
-                <option value="2">2 kişi</option>
-                <option value="3">3 kişi</option>
-                <option value="5">5 kişi</option>
-                <option value="8">8 kişi</option>
-                <option value="10">10 kişi</option>
-              </select>
-            </label>
-            <label class="row">
-              <span class="row-text">
-                <span class="row-title">Aynı anda kullanım <span class="tag">deneysel</span></span>
-                <span class="row-hint">Senin imlecin kıpırdamaz, bağlanan kişi hayalet imleçle çalışır.</span>
-              </span>
-              <input type="checkbox" class="switch" id="concurrent">
-            </label>
-          </div>
-          <details class="explain">
-            <summary>Aynı anda kullanım ne yapar?</summary>
-            <p><b>Kapalıyken:</b> tek, ortak imleç vardır. Sen fareye veya klavyeye dokunduğun anda bağlanan kişinin girişi <b>1 saniye bekletilir</b> ve imlecinin nerede kaldığı adıyla gösterilir.</p>
-            <p><b>Açıkken:</b> senin imlecin <b>hiç kıpırdamaz</b>. Bağlanan kişi ekranda adıyla birlikte kendi <b>hayalet imleciyle</b> çalışır; tıkladığı pencereye doğrudan komut gönderilir.</p>
-            <p><b>Hayalet imleçle çalışanlar:</b> klasik uygulamalarda tıklama, yazı yazma, Enter / Backspace / ok tuşları, kaydırma.</p>
-            <p><b>Çalışmayanlar:</b> tarayıcılar ve Electron uygulamaları, kısayollar, sürükleme, sağ tık menüleri, oyunlar, yönetici olarak çalışan programlar.</p>
-          </details>
-        </section>
-
-        <section class="set" id="adminSection">
-          <h4>Yönetici (UAC)</h4>
-          <div class="rows">
-            <div class="row static">
-              <span class="row-text">
-                <span class="row-title" id="adminState">Normal kullanıcı olarak çalışıyor</span>
-                <span class="row-hint">Yönetici olarak çalışırsa bağlanan kişi yönetici olarak açılmış pencereleri de kontrol edebilir. UAC onay ekranı ve kilit ekranı Windows tarafından korunur: bu ekranlar açıkken bağlanan kişi ekranı göremez, onayı bu bilgisayarın başındaki kişi vermelidir.</span>
-              </span>
-              <button class="small" id="elevate" type="button">Yönetici olarak yeniden başlat</button>
+            <div id="recentBox" class="recent hidden">
+              <div class="sub-head"><span>Son bağlantılar</span><a href="#devices" class="link">Tüm cihazlar</a></div>
+              <div id="recentList" class="peers"></div>
             </div>
-          </div>
-        </section>
+          </section>
+        </div>
+      </section>
 
-        <section class="set">
-          <h4>Hakkında</h4>
-          <div class="rows">
-            <div class="row static">
-              <span class="row-text">
-                <span class="row-title">RemoteDesk <span id="appVersion"></span></span>
-                <span class="row-hint" id="updState">Güncellemeler GitHub'dan denetlenir.</span>
-              </span>
-              <button class="small" id="updCheck" type="button">Güncellemeleri denetle</button>
-            </div>
+      <!-- ================= CİHAZLAR ================= -->
+      <section class="page" id="page-devices">
+        <div class="page-head">
+          <div>
+            <h1>Cihazlar</h1>
+            <p class="lead">Bağlandığın bilgisayarlar, gruplar ve takımlar. Bir cihaza tıklayınca bağlanma formuna gelir.</p>
           </div>
-        </section>
-      </div>
-    </div>
+          <div class="page-acts" id="teamActs">
+            <button class="small" id="teamCreateBtn" type="button">Takım oluştur</button>
+            <button class="small" id="teamJoinBtn" type="button">Koda katıl</button>
+          </div>
+        </div>
+        <div id="devicesEmpty" class="empty hidden">
+          <svg class="empty-ic"><use href="#i-devices"/></svg>
+          <div class="empty-title">Henüz kayıtlı cihaz yok</div>
+          <div class="empty-text" id="devicesEmptyText">Bir bilgisayara bağlandığında burada listelenir. Takım kurarak ekibinin bilgisayarlarını tek listede toplayabilirsin.</div>
+        </div>
+        <div id="peers" class="peers card plain"></div>
+      </section>
+
+      <!-- ================= TOPLANTI ================= -->
+      <section class="page" id="page-meeting">
+        <div class="page-head">
+          <div>
+            <h1>Toplantı</h1>
+            <p class="lead" id="meetLead">Bu bilgisayara bağlı olanlar, sohbet, ekran ve dosya paylaşımı.</p>
+          </div>
+          <div class="page-acts">
+            <button class="small hidden" id="openMain" type="button">Ana pencereyi aç</button>
+          </div>
+        </div>
+
+        <div id="meetEmpty" class="empty">
+          <svg class="empty-ic"><use href="#i-meet"/></svg>
+          <div class="empty-title">Şu an kimse bağlı değil</div>
+          <div class="empty-text">ID'ni paylaştığın kişiler bağlanınca burada görünür; aynı anda birden fazla kişi bağlanabilir.</div>
+          <a href="#home" class="button-link">ID'mi göster</a>
+        </div>
+
+        <div id="sessionBox" class="meet hidden">
+          <div id="stageBar" class="banner hidden">
+            <span class="dot ok"></span><span id="stageText"></span>
+            <span class="spacer"></span>
+            <button class="small" id="stageStop" type="button">Paylaşımı bitir</button>
+          </div>
+          <div id="hCallBar" class="banner call hidden">
+            <span id="hCallText"></span>
+            <span class="spacer"></span>
+            <span class="call-btns"><button id="hAccept" class="primary small">Kabul et</button>
+            <button id="hReject" class="small">Reddet</button></span>
+          </div>
+
+          <div class="meet-grid">
+            <div class="meet-col">
+              <section class="card">
+                <div class="card-head">
+                  <div><h2 id="sessTitle">Bağlı olanlar</h2></div>
+                  <button id="kick" class="danger small" type="button">Hepsini çıkar</button>
+                </div>
+                <ul id="sessList" class="people"></ul>
+              </section>
+
+              <section class="card">
+                <div class="card-head"><div><h2>Araçlar</h2></div></div>
+                <div class="rows">
+                  <div class="row static" id="voiceRow">
+                    <span class="row-text">
+                      <span class="row-title">Sesli görüşme</span>
+                      <span class="row-hint">Bağlı herkesle konuş; herkes herkesi duyar.</span>
+                    </span>
+                    <span class="row-acts">
+                      <button id="hMute" class="small hidden" type="button">Sessize al</button>
+                      <button id="hCall" class="small" type="button">Görüşmeyi başlat</button>
+                    </span>
+                  </div>
+                  <label class="row">
+                    <span class="row-text">
+                      <span class="row-title">Gizlilik modu</span>
+                      <span class="row-hint" id="privacyHint">Bu bilgisayarın ekranı kararır; bağlananlar görmeye devam eder. Kapatmak için Ctrl+Alt+Shift+P.</span>
+                    </span>
+                    <input type="checkbox" class="switch" id="privacySw">
+                  </label>
+                  <div class="row static">
+                    <span class="row-text">
+                      <span class="row-title">Ekrandaki çizimler</span>
+                      <span class="row-hint">Bağlananların ekrana çizdiklerini herkes için sil.</span>
+                    </span>
+                    <button id="inkClear" class="small" type="button">Sil</button>
+                  </div>
+                  <div class="row static">
+                    <span class="row-text">
+                      <span class="row-title">Dosya gönder</span>
+                      <span class="row-hint">Bağlı herkese gider. Buraya sürükleyip de bırakabilirsin.</span>
+                    </span>
+                    <button id="fileBtn" class="small" type="button"><svg class="ic"><use href="#i-file"/></svg>Dosya seç</button>
+                    <input type="file" id="fileInput" multiple hidden>
+                  </div>
+                </div>
+                <div id="recvBox" class="recv hidden">
+                  <div class="sub-head"><span>Alınan dosyalar</span><a href="#" class="link" id="recvFolder">Klasörü aç</a></div>
+                  <ul id="recvList" class="recv-list"></ul>
+                </div>
+              </section>
+            </div>
+
+            <section class="card chat-card">
+              <div class="card-head"><div><h2>Sohbet</h2></div></div>
+              <div id="chatList" class="chat-list" aria-live="polite"></div>
+              <form id="chatForm" class="chat-form" autocomplete="off">
+                <input id="chatInput" type="text" maxlength="2000" placeholder="Herkese mesaj yaz…">
+                <button class="primary icon-btn" type="submit" title="Gönder" aria-label="Gönder"><svg class="ic"><use href="#i-send"/></svg></button>
+              </form>
+            </section>
+          </div>
+          <div id="dropZone" class="dropzone hidden"><div>Bırak, bağlı herkese gönderilsin</div></div>
+        </div>
+      </section>
+
+      <!-- ================= AYARLAR ================= -->
+      <section class="page" id="page-settings">
+        <div class="page-head">
+          <div>
+            <h1>Ayarlar</h1>
+            <p class="lead">Bu bilgisayarın kimliği, erişimi ve bağlananların izinleri.</p>
+          </div>
+        </div>
+        <div class="settings">
+          <section class="card">
+            <div class="card-head"><div><h2>Kimlik</h2><p>Başkalarının bu bilgisayara bağlanmak için kullandığı ID.</p></div></div>
+            <div class="rows">
+              <div class="row static">
+                <span class="row-text">
+                  <span class="row-title">Bu bilgisayarın ID'si</span>
+                  <span class="row-hint" id="setIdHint">Sunucuya bağlanınca görünür.</span>
+                </span>
+                <span id="setId" class="mono strong">—</span>
+              </div>
+              <form class="row static col" id="renameForm">
+                <span class="row-text">
+                  <span class="row-title">ID'yi değiştir</span>
+                  <span class="row-hint">Kendi ID'ni seç (harfle başlar; küçük harf, rakam ve tire; 4-24 karakter) ya da rastgele yeni bir numara al. Eski ID ile artık bağlanılamaz.</span>
+                </span>
+                <div class="inline">
+                  <input id="renameInput" type="text" placeholder="ör. mustafa-pc" spellcheck="false" autocomplete="off" maxlength="24">
+                  <button class="small" type="submit">Kaydet</button>
+                  <button class="small ghost" type="button" id="renameRandom">Rastgele</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><div><h2>Erişim</h2><p>Bu bilgisayara ne zaman ve nasıl bağlanılabileceği.</p></div></div>
+            <div class="rows">
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Bilgisayar açılınca başlat</span>
+                  <span class="row-hint">Oturum açınca Meetdesk arka planda başlar (saatin yanındaki simge); bilgisayarın başında olman gerekmez.</span>
+                </span>
+                <input type="checkbox" class="switch" id="autoStart">
+              </label>
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Uygulama açılınca bağlantılara açık olsun</span>
+                  <span class="row-hint">Kapalıysa her açılışta "Gelen bağlantılara açık" anahtarını elle açman gerekir.</span>
+                </span>
+                <input type="checkbox" class="switch" id="onlineAtStart">
+              </label>
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Tarayıcıdan erişime izin ver</span>
+                  <span class="row-hint" id="browserHint">Uygulaması olmayan biri tarayıcıdan şifreyle bağlanabilir.</span>
+                </span>
+                <input type="checkbox" class="switch" id="allowBrowser">
+              </label>
+              <div class="row static hidden" id="browserLinkRow">
+                <span class="row-text">
+                  <span class="row-title">Tarayıcı adresi</span>
+                  <span class="row-hint mono" id="browserLink"></span>
+                </span>
+                <button class="small" id="browserCopy" type="button">Kopyala</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><div><h2>Sabit şifre</h2><p>Gözetimsiz erişim: bilgisayarın başında olmasan da bağlanılabilir.</p></div></div>
+            <div class="rows">
+              <form class="row static col" id="fixedForm">
+                <span class="row-text">
+                  <span class="row-title" id="fixedState">Ayarlı değil</span>
+                  <span class="row-hint">Bu şifreyi bilen kişi onay beklemeden bağlanır. Tek kullanımlık şifre de çalışmaya devam eder. En az 8 karakter; yalnızca özeti saklanır.</span>
+                </span>
+                <div class="inline">
+                  <input id="fixedInput" type="password" placeholder="Yeni sabit şifre" autocomplete="new-password" minlength="8">
+                  <button class="small" type="submit" id="fixedSave">Kaydet</button>
+                  <button class="small danger hidden" type="button" id="fixedRemove">Kaldır</button>
+                </div>
+              </form>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><div><h2>Bağlananların izinleri</h2><p>Bağlı kişiler başına fare/klavye izni Toplantı sayfasından da değiştirilebilir.</p></div></div>
+            <div class="rows">
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Fare ve klavye</span>
+                  <span class="row-hint">Kapalıyken bağlananlar yalnızca izler, ekrana çizer ve işaret eder.</span>
+                </span>
+                <input type="checkbox" class="switch" id="allowControl">
+              </label>
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Pano paylaşımı</span>
+                  <span class="row-hint">Kopyalanan metin iki bilgisayar arasında aktarılır.</span>
+                </span>
+                <input type="checkbox" class="switch" id="allowClipboard">
+              </label>
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Dosya alma</span>
+                  <span class="row-hint">Bağlananlar bu bilgisayara dosya gönderebilir (İndirilenler/Meetdesk klasörüne kaydedilir).</span>
+                </span>
+                <input type="checkbox" class="switch" id="allowFiles">
+              </label>
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Aynı anda bağlanabilecek kişi</span>
+                  <span class="row-hint">Toplantı için: herkes aynı ekranı görür, sohbet eder, ekrana çizer.</span>
+                </span>
+                <select id="maxViewers" class="compact">
+                  <option value="1">1 kişi</option>
+                  <option value="2">2 kişi</option>
+                  <option value="3">3 kişi</option>
+                  <option value="5">5 kişi</option>
+                  <option value="8">8 kişi</option>
+                  <option value="10">10 kişi</option>
+                </select>
+              </label>
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Aynı anda kullanım <span class="tag">deneysel</span></span>
+                  <span class="row-hint">Senin imlecin kıpırdamaz, bağlanan kişi hayalet imleçle çalışır.</span>
+                </span>
+                <input type="checkbox" class="switch" id="concurrent">
+              </label>
+            </div>
+            <details class="explain">
+              <summary>Aynı anda kullanım ne yapar?</summary>
+              <p><b>Kapalıyken:</b> tek, ortak imleç vardır. Sen fareye veya klavyeye dokunduğun anda bağlanan kişinin girişi <b>1 saniye bekletilir</b>; tıklamaya çalıştığı yerde küçük bir halka görünür, imlecinin nerede kaldığı adıyla gösterilir.</p>
+              <p><b>Açıkken:</b> senin imlecin <b>hiç kıpırdamaz</b>. Bağlanan kişi ekranda adıyla birlikte kendi <b>hayalet imleciyle</b> çalışır; tıkladığı pencereye doğrudan komut gönderilir.</p>
+              <p><b>Hayalet imleçle çalışanlar:</b> klasik uygulamalarda tıklama, yazı yazma, Enter / Backspace / ok tuşları, kaydırma.</p>
+              <p><b>Çalışmayanlar:</b> tarayıcılar ve Electron uygulamaları, kısayollar, sürükleme, sağ tık menüleri, oyunlar, yönetici olarak çalışan programlar.</p>
+            </details>
+          </section>
+
+          <section class="card" id="adminSection">
+            <div class="card-head"><div><h2>Yönetici (UAC)</h2></div></div>
+            <div class="rows">
+              <div class="row static">
+                <span class="row-text">
+                  <span class="row-title" id="adminState">Normal kullanıcı olarak çalışıyor</span>
+                  <span class="row-hint">Yönetici olarak çalışırsa bağlanan kişi yönetici olarak açılmış pencereleri de kontrol edebilir. UAC onay ekranı ve kilit ekranı Windows tarafından korunur: bu ekranlar açıkken onayı bu bilgisayarın başındaki kişi vermelidir.</span>
+                </span>
+                <button class="small" id="elevate" type="button">Yönetici olarak yeniden başlat</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><div><h2>Hakkında</h2></div></div>
+            <div class="rows">
+              <div class="row static">
+                <span class="row-text">
+                  <span class="row-title">Meetdesk <span id="appVersion"></span></span>
+                  <span class="row-hint" id="updState">Güncellemeler GitHub'dan denetlenir.</span>
+                </span>
+                <button class="small" id="updCheck" type="button">Güncellemeleri denetle</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
   </div>
 
   <div id="modal" class="modal hidden">
-    <div class="dialog">
-      <h3>Bağlantı isteği</h3>
+    <div class="dialog" role="alertdialog" aria-labelledby="reqTitle">
+      <h3 id="reqTitle">Bağlantı isteği</h3>
       <p><b id="reqName"></b> <span id="reqRemote" class="muted mono"></span> bu bilgisayarı kontrol etmek istiyor.</p>
       <p class="muted">Tanımıyorsan reddet.</p>
       <div class="bar-timer"><div id="reqBar"></div></div>

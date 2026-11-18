@@ -695,6 +695,10 @@ func (a *App) uiHandler() http.Handler {
 		writeOK(w)
 	})
 	mux.HandleFunc("POST /api/chat", a.handleChat)
+	mux.HandleFunc("POST /api/ui/main", func(w http.ResponseWriter, r *http.Request) {
+		go a.showMain()
+		writeOK(w)
+	})
 	mux.HandleFunc("POST /api/meeting/present", a.handlePresent)
 	mux.HandleFunc("POST /api/host/askpresent", a.handleAskPresent)
 	mux.HandleFunc("POST /api/host/stagestop", func(w http.ResponseWriter, r *http.Request) {
@@ -765,7 +769,13 @@ func (a *App) guard(h http.Handler) http.Handler {
 				return
 			}
 			http.SetCookie(w, &http.Cookie{Name: "rd", Value: a.uiToken, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode})
-			http.Redirect(w, r, "/", http.StatusSeeOther)
+			q := r.URL.Query()
+			q.Del("k")
+			to := "/"
+			if len(q) > 0 {
+				to += "?" + q.Encode() // ör. panel=1 (sağ alttaki oturum paneli)
+			}
+			http.Redirect(w, r, to, http.StatusSeeOther)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
