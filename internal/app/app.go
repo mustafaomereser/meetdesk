@@ -28,12 +28,16 @@ import (
 	"remotedesk/internal/clipboard"
 	"remotedesk/internal/host"
 	"remotedesk/internal/sysutil"
+	"remotedesk/internal/tray"
 	"remotedesk/internal/tunnel"
 	"remotedesk/internal/video"
 	"remotedesk/web"
 )
 
-const WindowTitle = "RemoteDesk"
+// AppName, uygulamanın kullanıcıya görünen adıdır.
+const AppName = "Meetdesk"
+
+const WindowTitle = AppName
 
 type Options struct {
 	DataDir    string
@@ -89,6 +93,7 @@ type State struct {
 	Chat       []host.ChatMsg `json:"chat"`
 	Received   []RecvFile     `json:"received"` // bağlananlardan alınan dosyalar
 	Privacy    bool           `json:"privacy"`  // gizlilik modu (ekran karartıldı)
+	Stage      string         `json:"stage"`    // toplantıda ekranını paylaşan kişi (boş: yok)
 	AllowFiles bool           `json:"allowFiles"`
 	MaxViewers int            `json:"maxViewers"`
 	Pending    *Pending       `json:"pending"`
@@ -159,6 +164,11 @@ type App struct {
 	rtcSubs map[chan []byte]struct{} // sesli görüşme sinyali dinleyen ana pencere(ler)
 	viewers viewerSet
 
+	meetKeys map[string]time.Time // toplantı anahtarları (ekranımı paylaşıyorum), mu ile korunur
+	trayOn   bool                 // bildirim alanı simgesi var: ana pencere kapanınca uygulama çalışmaya devam eder
+	mainOpen atomic.Bool          // ana pencere açık
+	bgNoted  atomic.Bool          // "arka planda çalışıyor" bildirimi gösterildi
+
 	hubc         *hub.Client // sunucu bağlantısı (mu ile korunur)
 	hubConnected bool
 	teams        []hub.Team // üyesi olunan takımlar (mu ile korunur)
@@ -200,6 +210,7 @@ func New(o Options) *App {
 		Video: a.videoInfo, Concurrent: a.concurrent, Perms: a.permissions,
 		Browser: a.browserAllowed, WebFS: web.FS, OnRTC: a.pushRTC, MaxViewers: a.maxViewers,
 		OnChat: a.onChat, OnFile: a.onFile, OnPrivacy: a.onPrivacy, FileDir: fileDir,
+		Guest: a.isMeetingKey, OnStage: a.onStage,
 	}
 	a.peers.load(o.DataDir)
 	if sysutil.PermissionsNeeded() {
@@ -274,7 +285,11 @@ func (a *App) Run() error {
 		a.uiAddr = ul.Addr().String()
 		go (&http.Server{Handler: a.uiHandler(), ReadHeaderTimeout: 10 * time.Second}).Serve(ul)
 		log.Printf("arayüz: http://%s/", a.uiAddr)
-		a.openUI()
+		a.startTray()
+		// Sistemle başlatıldıysa ve tepsi simgesi varsa pencere açılmaz; simgeden açılır.
+		if !(a.opts.AutoStart && a.trayOn) {
+			a.openUI()
+		}
 	}
 
 	sig := make(chan os.Signal, 1)
@@ -284,6 +299,8 @@ func (a *App) Run() error {
 	case <-sig:
 	}
 	log.Printf("kapatılıyor")
+	tray.Stop()
+	closePanel()
 	if a.browser != nil {
 		closeBrowser(a.browser)
 	}
@@ -344,7 +361,9 @@ func (a *App) onSession(sid int, remote, name string, active bool) {
 	if !active {
 		a.pushRTC(sid, json.RawMessage(`{"type":"bye"}`)) // oturum bitti: açık görüşme kapansın
 	}
+	var before, after int
 	a.update(func(s *State) {
+		before = len(s.Sessions)
 		out := s.Sessions[:0:0]
 		for _, x := range s.Sessions {
 			if x.ID != sid {
@@ -355,10 +374,12 @@ func (a *App) onSession(sid int, remote, name string, active bool) {
 			out = append(out, Session{ID: sid, Name: name, Remote: remote, Since: time.Now().UnixMilli(), Control: true, Color: a.host.SessionColor(sid)})
 		}
 		s.Sessions = out
+		after = len(out)
 		if len(out) == 0 {
 			s.Chat = nil // toplantı bitti
 		}
 	})
+	a.sessionsChanged(before, after)
 }
 
 // setSessionControl, tek bir kişinin fare/klavye iznini değiştirir.
@@ -674,6 +695,12 @@ func (a *App) uiHandler() http.Handler {
 		writeOK(w)
 	})
 	mux.HandleFunc("POST /api/chat", a.handleChat)
+	mux.HandleFunc("POST /api/meeting/present", a.handlePresent)
+	mux.HandleFunc("POST /api/host/askpresent", a.handleAskPresent)
+	mux.HandleFunc("POST /api/host/stagestop", func(w http.ResponseWriter, r *http.Request) {
+		a.host.StopStage()
+		writeOK(w)
+	})
 	mux.HandleFunc("POST /api/host/privacy", a.handlePrivacy)
 	mux.HandleFunc("POST /api/files/send", a.handleFileSend)
 	mux.HandleFunc("POST /api/files/save", a.handleFileSave)
@@ -895,7 +922,19 @@ func (a *App) openUI() {
 		log.Printf("arayüz (geliştirme): %s", url)
 		return
 	}
-	if openNativeWindow(url, a.opts.DataDir, a.Quit, a.opts.AutoStart) {
+	onClose := func() {
+		a.mainOpen.Store(false)
+		if !a.trayOn {
+			a.Quit()
+			return
+		}
+		// Tepsi simgesi varken pencereyi kapatmak uygulamayı kapatmaz.
+		if !a.bgNoted.Swap(true) {
+			tray.Notify(AppName+" arka planda çalışıyor", "Bağlantı almaya devam ediyor. Açmak ya da çıkmak için saatin yanındaki simgeyi kullan.")
+		}
+	}
+	if openNativeWindow(url, a.opts.DataDir, onClose, a.opts.AutoStart && !a.trayOn) {
+		a.mainOpen.Store(true)
 		log.Printf("arayüz uygulama penceresinde açıldı")
 		return
 	}
@@ -979,5 +1018,77 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 		return false
 	case <-t.C:
 		return true
+	}
+}
+
+// ---- bildirim alanı simgesi ve oturum paneli ----
+
+func (a *App) startTray() {
+	icon, _ := web.FS.ReadFile("icon.png")
+	a.trayOn = tray.Start(tray.Options{
+		Icon:    icon,
+		Tooltip: AppName,
+		OnClick: a.showMain,
+		Menu: func() []tray.Item {
+			a.mu.Lock()
+			online, n := a.st.Online, len(a.st.Sessions)
+			a.mu.Unlock()
+			items := []tray.Item{{Label: AppName + "'i aç", Bold: true, OnClick: a.showMain}}
+			if n > 0 {
+				items = append(items, tray.Item{Label: fmt.Sprintf("Oturum paneli (%d kişi bağlı)", n), OnClick: a.showPanel})
+			}
+			items = append(items,
+				tray.Item{},
+				tray.Item{Label: "Gelen bağlantılara açık", Checked: online, OnClick: func() { a.setOnline(!a.isOnline()) }},
+			)
+			if n > 0 {
+				items = append(items, tray.Item{Label: "Herkesin bağlantısını kes", OnClick: a.host.Kick})
+			}
+			return append(items, tray.Item{}, tray.Item{Label: "Çıkış", OnClick: a.Quit})
+		},
+	})
+	if a.trayOn {
+		log.Printf("bildirim alanı simgesi hazır")
+	}
+}
+
+// showMain, ana pencereyi öne getirir; kapalıysa yeniden açar.
+func (a *App) showMain() {
+	if a.opts.Headless || a.uiAddr == "" {
+		return
+	}
+	if a.mainOpen.Load() && focusNativeMain() {
+		return
+	}
+	a.openUI()
+}
+
+func (a *App) panelURL() string { return "http://" + a.uiAddr + "/?k=" + a.uiToken + "&panel=1" }
+
+// showPanel, sağ alttaki oturum panelini açar ya da öne getirir.
+func (a *App) showPanel() {
+	if a.opts.Headless || a.uiAddr == "" || os.Getenv("RD_DEV_UI") == "1" {
+		return
+	}
+	if !focusPanel() {
+		openPanel(a.panelURL(), a.opts.DataDir)
+	}
+}
+
+// sessionsChanged: biri bağlanınca panel açılır, herkes çıkınca kapanır.
+func (a *App) sessionsChanged(before, after int) {
+	if after == 0 {
+		tray.SetTooltip(AppName)
+	} else {
+		tray.SetTooltip(fmt.Sprintf("%s · %d kişi bağlı", AppName, after))
+	}
+	if !a.trayOn {
+		return
+	}
+	switch {
+	case before == 0 && after > 0:
+		go a.showPanel()
+	case after == 0 && before > 0:
+		closePanel()
 	}
 }

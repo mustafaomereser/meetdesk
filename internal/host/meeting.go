@@ -114,6 +114,13 @@ func (s *Server) handleMeeting(ctx context.Context, sess *session, m *message) b
 		s.recvFile(ctx, sess, m)
 	case "fa":
 		sess.files.ack(m.FID, m.N)
+	case "present":
+		// Bu kişi kendi ekranını toplantıdakilere açıyor: id = onun cihaz ID'si, pw = toplantı anahtarı.
+		if m.ID == "" {
+			s.setStage(sess, "", "")
+		} else if len(m.ID) <= 64 && len(m.Pw) >= 16 && len(m.Pw) <= 64 {
+			s.setStage(sess, m.ID, m.Pw)
+		}
 	default:
 		return false
 	}
@@ -189,6 +196,52 @@ func (s *Server) Privacy() bool {
 	return s.privacy
 }
 
+// ---- sunucu değiştirme: toplantıda başka birinin ekranı ----
+
+// setStage: sess, kendi bilgisayarının ekranını herkese açtı (id boşsa kapattı).
+// Diğer herkesin izleme penceresi o bilgisayara anahtarla bağlanır.
+func (s *Server) setStage(sess *session, id, key string) {
+	s.mu.Lock()
+	if id == "" && s.stageBy != sess.sid {
+		s.mu.Unlock()
+		return
+	}
+	s.stageBy, s.stageID, s.stageKey = sess.sid, id, key
+	if id == "" {
+		s.stageBy = 0
+	}
+	s.mu.Unlock()
+	s.broadcast(map[string]any{"t": "stage", "id": id, "pw": key, "n": sess.name, "by": sess.sid}, sess.sid)
+	if s.OnStage != nil {
+		s.OnStage(id, sess.name)
+	}
+}
+
+// AskPresent, toplantıdaki bir kişiden ekranını herkese göstermesini ister.
+func (s *Server) AskPresent(sid int, from string) error {
+	sess := s.session(sid)
+	if sess == nil {
+		return errors.New("Bu kişi artık bağlı değil.")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return sess.c.WriteJSON(ctx, map[string]any{"t": "askpresent", "n": cleanName(from)})
+}
+
+// StopStage, süren ekran paylaşımını herkes için bitirir.
+func (s *Server) StopStage() {
+	s.mu.Lock()
+	by := s.stageBy
+	s.stageBy, s.stageID, s.stageKey = 0, "", ""
+	s.mu.Unlock()
+	if by != 0 {
+		s.broadcast(map[string]any{"t": "stage", "id": ""}, -1)
+		if s.OnStage != nil {
+			s.OnStage("", "")
+		}
+	}
+}
+
 // ---- monitör takibi (sunum) ----
 
 func (s *Server) setPresenter(sess *session, on bool) {
@@ -237,7 +290,11 @@ func (s *Server) sessionGone(sid int) {
 		s.presenter = 0
 	}
 	privacy := s.privacy && s.privacyBy == sid
+	stage := s.stageBy == sid
 	s.mu.Unlock()
+	if stage {
+		s.StopStage()
+	}
 	if wasPresenter {
 		s.broadcast(map[string]any{"t": "follow", "id": sid, "on": false}, -1)
 	}
@@ -509,4 +566,38 @@ func (sess *session) sendFile(name string, size int64, open func() (io.ReadClose
 		sent += int64(n)
 	}
 	return sess.c.WriteJSON(ctx, map[string]any{"t": "fe", "fid": fid})
+}
+
+// sendMeetingState: sonradan katılana süren toplantı durumunu (gizlilik, sunum, paylaşılan ekran) bildirir.
+func (s *Server) sendMeetingState(ctx context.Context, sess *session) {
+	s.mu.Lock()
+	privacy, presenter, stageBy, stageID, stageKey := s.privacy, s.presenter, s.stageBy, s.stageID, s.stageKey
+	pname, sname := "", ""
+	if m := s.sessions[presenter]; m != nil {
+		pname = m.name
+	}
+	if m := s.sessions[stageBy]; m != nil {
+		sname = m.name
+	}
+	s.mu.Unlock()
+	if privacy {
+		sess.c.WriteJSON(ctx, map[string]any{"t": "privacy", "on": true})
+	}
+	if presenter != 0 {
+		sess.c.WriteJSON(ctx, map[string]any{"t": "follow", "id": presenter, "n": pname, "on": true})
+	}
+	if stageBy != 0 && stageBy != sess.sid {
+		sess.c.WriteJSON(ctx, map[string]any{"t": "stage", "id": stageID, "pw": stageKey, "n": sname, "by": stageBy})
+	}
+}
+
+// KickGuests, toplantı anahtarıyla bağlanmış herkesin bağlantısını keser (paylaşım bitti).
+func (s *Server) KickGuests() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, m := range s.sessions {
+		if m.sess != nil && m.sess.guest {
+			m.cancel()
+		}
+	}
 }

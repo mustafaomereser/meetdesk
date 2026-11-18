@@ -51,6 +51,7 @@ type session struct {
 	perms      func() Perms
 	onRTC      func(json.RawMessage)
 	sid        int                         // sunucudaki oturum numarası
+	guest      bool                        // toplantı anahtarıyla geldi (yalnızca izleme)
 	srv        *Server                     // çizim ve katılımcı yayını için
 	noControl  atomic.Bool                 // bu kişinin fare/klavye izni ana kullanıcı tarafından kapatıldı
 	view       atomic.Pointer[viewDisplay] // şu an izlenen monitör (çizim koordinatları için)

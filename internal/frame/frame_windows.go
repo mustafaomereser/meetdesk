@@ -423,7 +423,7 @@ func create(o Options) (*win, error) {
 	if small := iconHandle(16); small != 0 {
 		pSendMsg.Call(hwnd, wmSetIcon, 0, small)
 	}
-	place(hwnd, o.W, o.H)
+	place(hwnd, o.W, o.H, o.Corner)
 	dark := int32(1)
 	pDwmAttr.Call(hwnd, 20, uintptr(unsafe.Pointer(&dark)), 4) // DWMWA_USE_IMMERSIVE_DARK_MODE
 
@@ -457,6 +457,14 @@ func create(o Options) (*win, error) {
 	c.Init(fmt.Sprintf("window.__RD_FRAME={host:'webview2',drag:%t};", nonClient))
 	w.resize()
 	c.Navigate(o.URL)
+	if o.Corner {
+		const swShowNoActivate = 4
+		const hwndTopmost = ^uintptr(0)
+		pSetPos.Call(hwnd, hwndTopmost, 0, 0, 0, 0, 0x0001|0x0002|0x0010) // NOSIZE|NOMOVE|NOACTIVATE
+		pShow.Call(hwnd, swShowNoActivate)
+		_ = c.Show()
+		return w, nil
+	}
 	if o.Minimized {
 		const swShowMinNoActive = 7
 		pShow.Call(hwnd, swShowMinNoActive)
@@ -472,7 +480,7 @@ func create(o Options) (*win, error) {
 }
 
 // place, pencereyi açıldığı ekranın çalışma alanında ortalar (DPI ölçekli, sığmazsa küçültür).
-func place(hwnd uintptr, w, h int) {
+func place(hwnd uintptr, w, h int, corner bool) {
 	w, h = dpiScale(hwnd, w), dpiScale(hwnd, h)
 	mon, _, _ := pMonitor.Call(hwnd, 2)
 	mi := monitorInfo{Size: uint32(unsafe.Sizeof(monitorInfo{}))}
@@ -481,5 +489,9 @@ func place(hwnd uintptr, w, h int) {
 	w, h = min(w, ww-40), min(h, wh-40)
 	x := int(mi.Work.Left) + (ww-w)/2
 	y := int(mi.Work.Top) + (wh-h)/2
+	if corner { // sağ alt köşe (görev çubuğunun üstü)
+		m := dpiScale(hwnd, 12)
+		x, y = int(mi.Work.Right)-w-m, int(mi.Work.Bottom)-h-m
+	}
 	pSetPos.Call(hwnd, 0, uintptr(x), uintptr(y), uintptr(w), uintptr(h), 0x0014)
 }

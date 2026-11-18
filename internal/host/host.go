@@ -48,6 +48,11 @@ type Server struct {
 	OnPrivacy func(on bool)
 	// FileDir, alınan dosyaların kaydedileceği klasör (nil: dosya alınmaz).
 	FileDir func() string
+	// Guest, pw bir toplantı anahtarıysa true döner: bu bilgisayar ekranını bir toplantıda
+	// paylaşıyor, anahtarla gelenler onaysız ve yalnızca izleme izniyle bağlanır.
+	Guest func(pw string) bool
+	// OnStage, toplantıda biri ekranını açınca/kapatınca çağrılır (id boş: bitti).
+	OnStage func(id, name string)
 	// Video, H.264 için ffmpeg hazırsa yolunu ve kodlayıcıyı döner (nil olabilir).
 	Video VideoInfo
 	// Concurrent, "aynı anda kullanım" (simülasyon modu) açıksa true döner (nil olabilir).
@@ -60,6 +65,9 @@ type Server struct {
 	privacy    bool     // gizlilik modu açık
 	privacyBy  int      // açan kişi (ayrılınca kapanır)
 	presenter  int      // monitörünü herkesin takip ettiği kişi (0: yok)
+	stageBy    int      // ekranını toplantıya açan kişi (0: yok)
+	stageID    string
+	stageKey   string
 	fails      int
 	lockUntil  time.Time
 	unauthed   int // henüz şifresini göndermemiş bağlantı sayısı
@@ -159,6 +167,7 @@ type message struct {
 	Size int64  `json:"size,omitempty"`
 	N    int64  `json:"n,omitempty"`
 	Data string `json:"data,omitempty"`
+	ID   string `json:"id,omitempty"`
 }
 
 // cleanName, viewer'ın gönderdiği adı ekranda gösterilebilir hale getirir.
@@ -449,7 +458,12 @@ func (s *Server) serve(c Conn, remote string) {
 	// Şifreyle (tek kullanımlık ya da sabit) gelen doğrudan bağlanır.
 	request := m.Pw == ""
 	var ok, locked bool
-	if !request {
+	// Toplantı anahtarıyla gelen (bu bilgisayar ekranını toplantıda paylaşıyor): onaysız,
+	// yalnızca izleme.
+	guest := !request && s.Guest != nil && s.Guest(m.Pw)
+	if guest {
+		ok = true
+	} else if !request {
 		ok, _, locked = s.tryAuth(m.Pw)
 	}
 	if !request && !ok && !locked {
@@ -507,6 +521,10 @@ func (s *Server) serve(c Conn, remote string) {
 	sess.srv = s
 	sess.concurrent = s.Concurrent
 	sess.perms = s.Perms
+	sess.guest = guest
+	if guest {
+		sess.noControl.Store(true)
+	}
 	if s.OnRTC != nil {
 		sess.onRTC = func(msg json.RawMessage) { s.OnRTC(sid, msg) }
 	}
@@ -532,6 +550,7 @@ func (s *Server) serve(c Conn, remote string) {
 		s.sendPeople()
 	}()
 	s.ink.replay(ctx, sess)
+	s.sendMeetingState(ctx, sess)
 	if request {
 		log.Printf("bağlantı isteği kabul edildi: %s", remote)
 	} else {

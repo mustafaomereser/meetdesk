@@ -175,3 +175,79 @@ func (a *App) handleFileReveal(w http.ResponseWriter, r *http.Request) {
 	cmd.Start()
 	writeOK(w)
 }
+
+// ---- ekranımı toplantıda paylaş ----
+// Bu bilgisayar başka bir bilgisayardaki toplantıya bağlıyken "Ekranımı herkese göster"
+// denince bir toplantı anahtarı üretilir. Toplantıdakiler bu bilgisayara anahtarla, onaysız ve
+// yalnızca izleme izniyle bağlanır. Paylaşım bitince anahtar geçersiz olur, izleyenler çıkarılır.
+
+func (a *App) isMeetingKey(pw string) bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	exp, ok := a.meetKeys[pw]
+	return ok && time.Now().Before(exp)
+}
+
+func (a *App) handlePresent(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		On bool `json:"on"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	if !body.On {
+		a.mu.Lock()
+		a.meetKeys = nil
+		a.mu.Unlock()
+		a.host.KickGuests()
+		writeOK(w)
+		return
+	}
+	a.mu.Lock()
+	online := a.st.Online
+	id := a.st.DeviceID
+	if id == "" || a.st.Hub != "online" {
+		id = a.st.ID // sunucusuz mod: tünel adresi
+	}
+	a.mu.Unlock()
+	if !online || id == "" {
+		http.Error(w, "Ekranını paylaşmak için önce \"Gelen bağlantılara açık\" olmalısın.", 409)
+		return
+	}
+	key := randString(24, "abcdefghijkmnpqrstuvwxyz23456789")
+	a.mu.Lock()
+	if a.meetKeys == nil {
+		a.meetKeys = map[string]time.Time{}
+	}
+	a.meetKeys[key] = time.Now().Add(4 * time.Hour)
+	a.mu.Unlock()
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"id": id, "pw": key})
+}
+
+func (a *App) handleAskPresent(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := readJSON(r, &body); err != nil {
+		http.Error(w, err.Error(), 400)
+		return
+	}
+	if err := a.host.AskPresent(body.ID, body.Name); err != nil {
+		http.Error(w, err.Error(), 404)
+		return
+	}
+	writeOK(w)
+}
+
+func (a *App) onStage(id, name string) {
+	a.update(func(s *State) {
+		if id == "" {
+			s.Stage = ""
+		} else {
+			s.Stage = name
+		}
+	})
+}
