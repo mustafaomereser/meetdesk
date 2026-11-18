@@ -727,11 +727,13 @@ body.framed.app .winctl { margin: 0 0 0 6px; }
   display: grid; place-items: center; font-size: 12.5px; font-weight: 700; color: #fff;
   background: color-mix(in srgb, var(--c) 30%, transparent); border: 2px solid var(--c);
 }
-.who { flex: 1; min-width: 120px; }
+.who { flex: 1 1 160px; min-width: 0; }
 .who-name { font-weight: 600; display: flex; align-items: center; gap: 8px; overflow-wrap: anywhere; }
-.who-meta { font-size: 12px; color: var(--faint); font-family: var(--mono); }
+.who-meta { font-size: 12px; color: var(--faint); font-family: var(--mono); display: flex; min-width: 0; white-space: pre; }
+.who-addr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.who-time { flex: none; }
 .tag.ok { background: rgba(61, 214, 140, .14); color: var(--ok); }
-.ctl-toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.ctl-toggle { flex: none; display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
 .person-acts { display: flex; gap: 2px; }
 .recv { border-top: 1px solid var(--line); padding-top: 12px; }
 .recv-list { list-style: none; margin: 0; padding: 0; }
@@ -932,3 +934,8 @@ body.panel .person { padding: 8px 0; }
 body.panel .person-acts { width: 100%; justify-content: flex-end; }
 body.panel .banner { padding: 8px 10px; font-size: 12.5px; }
 body.panel #chatCard > .card-head, body.panel #toolsCard > .card-head { display: none; }
+
+/* panelde yatay kaydırma olmasın: kişi satırı = avatar + ad/adres (kısalır) + kontrol; altta işlemler */
+body.panel .content, body.panel .card, body.panel .meet-grid .card { overflow-x: hidden; }
+body.panel .person { gap: 10px; }
+body.panel .who { flex: 1 1 0; }

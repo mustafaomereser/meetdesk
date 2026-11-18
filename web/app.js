@@ -216,8 +216,11 @@ function renderSessions(list) {
     const cs = conf.stateOf(p.id);
     if (cs) nm.appendChild(el('span', 'tag ok', cs === 'active' ? 'sesli' : cs === 'incoming' ? 'arıyor' : 'bağlanıyor'));
     const meta = el('div', 'who-meta');
-    meta.append(document.createTextNode(p.remote + ' · '));
-    const t = el('span', '');
+    // Uzak adres (IPv6 çok uzun olabilir) tek satırda kısaltılır; tamamı üzerine gelince görünür.
+    const addr = el('span', 'who-addr', p.remote);
+    addr.title = p.remote;
+    meta.append(addr, document.createTextNode(' · '));
+    const t = el('span', 'who-time');
     t.dataset.since = p.since;
     meta.appendChild(t);
     who.append(nm, meta);
