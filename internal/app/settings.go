@@ -29,6 +29,7 @@ type Settings struct {
 	AllowBrowser   bool `json:"allowBrowser"`   // tünel adresi tarayıcıda açılabilir (şifreyle)
 	MaxViewers     int  `json:"maxViewers"`     // aynı anda bağlanabilecek kişi (0: varsayılan)
 	AllowFiles     bool `json:"allowFiles"`     // bağlanan kişi dosya gönderebilir
+	QuitOnClose    bool `json:"quitOnClose"`    // ana pencere kapanınca uygulamadan çık (varsayılan: arka planda çalış)
 
 	// Sabit şifre (gözetimsiz erişim): yalnızca PBKDF2 özeti saklanır.
 	FixedHash string `json:"fixedHash,omitempty"`
@@ -70,6 +71,7 @@ func (a *App) syncStateLocked() {
 	a.st.FixedPassword = a.set.FixedHash != ""
 	a.st.AllowBrowser = a.set.AllowBrowser
 	a.st.AllowFiles = a.set.AllowFiles
+	a.st.QuitOnClose = a.set.QuitOnClose
 	a.st.MaxViewers = a.maxViewersLocked()
 }
 
@@ -166,6 +168,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 		AllowClipboard *bool `json:"allowClipboard"`
 		AllowBrowser   *bool `json:"allowBrowser"`
 		AllowFiles     *bool `json:"allowFiles"`
+		QuitOnClose    *bool `json:"quitOnClose"`
 		MaxViewers     *int  `json:"maxViewers"`
 		AutoStart      *bool `json:"autoStart"`
 	}
@@ -194,6 +197,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	set(&a.set.AllowClipboard, body.AllowClipboard)
 	set(&a.set.AllowBrowser, body.AllowBrowser)
 	set(&a.set.AllowFiles, body.AllowFiles)
+	set(&a.set.QuitOnClose, body.QuitOnClose)
 	if body.MaxViewers != nil {
 		a.set.MaxViewers = min(max(*body.MaxViewers, 1), 10)
 	}

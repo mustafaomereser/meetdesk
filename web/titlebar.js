@@ -34,10 +34,13 @@
     if (!bar) return;
     const ctl = document.createElement('div');
     ctl.className = 'winctl';
-    ctl.innerHTML =
-      `<button type="button" data-w="min" title="Simge durumuna küçült">${ICON.min}</button>` +
-      `<button type="button" data-w="max" title="Büyüt">${ICON.max}</button>` +
-      `<button type="button" data-w="close" class="close" title="Kapat">${ICON.close}</button>`;
+    // Sağ alttaki oturum paneli: yalnızca kapat (bildirim alanı simgesinden yeniden açılır).
+    const panel = new URLSearchParams(location.search).get('panel') === '1';
+    ctl.innerHTML = panel
+      ? `<button type="button" data-w="close" class="close" title="Kapat (saatin yanındaki simgeden yeniden açılır)">${ICON.close}</button>`
+      : `<button type="button" data-w="min" title="Simge durumuna küçült">${ICON.min}</button>` +
+        `<button type="button" data-w="max" title="Büyüt">${ICON.max}</button>` +
+        `<button type="button" data-w="close" class="close" title="Kapat">${ICON.close}</button>`;
     ctl.addEventListener('click', (e) => {
       const b = e.target.closest('button');
       if (b) post('win:' + b.dataset.w);

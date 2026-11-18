@@ -187,9 +187,14 @@
             <button id="hReject" class="small">Reddet</button></span>
           </div>
 
+          <div class="ptabs" role="tablist" aria-label="Oturum">
+            <button type="button" role="tab" data-tab="people" class="on">Kişiler <b id="ptPeople" class="pt-count"></b></button>
+            <button type="button" role="tab" data-tab="chat">Sohbet <b id="ptChat" class="pt-count unread hidden"></b></button>
+            <button type="button" role="tab" data-tab="tools">Araçlar</button>
+          </div>
           <div class="meet-grid">
             <div class="meet-col">
-              <section class="card">
+              <section class="card" id="peopleCard">
                 <div class="card-head">
                   <div><h2 id="sessTitle">Bağlı olanlar</h2></div>
                   <button id="kick" class="danger small" type="button">Hepsini çıkar</button>
@@ -197,7 +202,7 @@
                 <ul id="sessList" class="people"></ul>
               </section>
 
-              <section class="card">
+              <section class="card" id="toolsCard">
                 <div class="card-head"><div><h2>Araçlar</h2></div></div>
                 <div class="rows">
                   <div class="row static" id="voiceRow">
@@ -240,7 +245,7 @@
               </section>
             </div>
 
-            <section class="card chat-card">
+            <section class="card chat-card" id="chatCard">
               <div class="card-head"><div><h2>Sohbet</h2></div></div>
               <div id="chatList" class="chat-list" aria-live="polite"></div>
               <form id="chatForm" class="chat-form" autocomplete="off">
@@ -294,7 +299,17 @@
                   <span class="row-title">Bilgisayar açılınca başlat</span>
                   <span class="row-hint">Oturum açınca Meetdesk arka planda başlar (saatin yanındaki simge); bilgisayarın başında olman gerekmez.</span>
                 </span>
-                <input type="checkbox" class="switch" id="autoStart">
+              <input type="checkbox" class="switch" id="autoStart">
+              </label>
+              <label class="row hidden" id="closeRow">
+                <span class="row-text">
+                  <span class="row-title">Pencereyi kapatınca</span>
+                  <span class="row-hint">Arka planda çalışırsa bağlantı almaya devam eder; saatin yanındaki simgeden açılır.</span>
+                </span>
+                <select id="closeMode" class="compact">
+                  <option value="bg">Arka planda çalışsın</option>
+                  <option value="quit">Uygulamadan çık</option>
+                </select>
               </label>
               <label class="row">
                 <span class="row-text">

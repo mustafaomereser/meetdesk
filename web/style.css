@@ -903,3 +903,32 @@ body.touch.side-open .fabs { display: none; }
 .avatar.host::before { content: ""; width: 12px; height: 8px; border: 2px solid var(--muted); border-radius: 2px; }
 #voiceRow.me-speaking .row-title::after { content: "konuşuyorsun"; margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--ok); }
 body.panel .meet-grid { align-items: stretch; }
+
+/* ---- sağ alttaki oturum paneli: sekmeli, sayfa kaymaz ---- */
+.ptabs { display: none; }
+body.panel .content { overflow: hidden; display: flex; flex-direction: column; padding: 10px 12px 12px; }
+body.panel .content > .page:not(.hidden) { flex: 1; min-height: 0; display: flex; flex-direction: column; width: 100%; }
+body.panel .page-head { margin-bottom: 8px; align-items: center; }
+body.panel .page-head h1 { font-size: 16px; }
+body.panel #sessionBox:not(.hidden) { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+body.panel .ptabs {
+  display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--frame); border: 1px solid var(--line); flex: none;
+}
+body.panel .ptabs button {
+  flex: 1; height: 32px; border-radius: 9px; border: 0; background: transparent; color: var(--muted); font-size: 13px; gap: 6px;
+}
+body.panel .ptabs button.on { background: var(--surface-2); color: var(--text); }
+.pt-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9999px; background: var(--surface); color: var(--muted); font-size: 11px; display: inline-flex; align-items: center; justify-content: center; }
+.pt-count.unread { background: var(--bad); color: #fff; }
+body.panel .meet-grid { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body.panel .meet-col { display: contents; }
+body.panel .meet-grid .card { display: none; }
+body.panel[data-tab=people] #peopleCard, body.panel[data-tab=tools] #toolsCard, body.panel[data-tab=chat] #chatCard {
+  display: flex; flex: 1; min-height: 0; height: auto; overflow-y: auto; position: static;
+}
+body.panel #chatCard { overflow: hidden; }
+body.panel .card-head h2 { font-size: 14px; }
+body.panel .person { padding: 8px 0; }
+body.panel .person-acts { width: 100%; justify-content: flex-end; }
+body.panel .banner { padding: 8px 10px; font-size: 12.5px; }
+body.panel #chatCard > .card-head, body.panel #toolsCard > .card-head { display: none; }

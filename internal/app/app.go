@@ -83,24 +83,26 @@ type Perms struct {
 
 // State, arayüze SSE ile gönderilen anlık durumdur.
 type State struct {
-	Tunnel     string         `json:"tunnel"` // starting | downloading | on | error
-	TunnelMsg  string         `json:"tunnelMsg"`
-	ID         string         `json:"id"`
-	Password   string         `json:"password"`
-	AutoAccept bool           `json:"autoAccept"`
-	Concurrent bool           `json:"concurrent"` // aynı anda kullanım (simülasyon modu)
-	Sessions   []Session      `json:"sessions"`
-	Chat       []host.ChatMsg `json:"chat"`
-	Received   []RecvFile     `json:"received"` // bağlananlardan alınan dosyalar
-	Privacy    bool           `json:"privacy"`  // gizlilik modu (ekran karartıldı)
-	Stage      string         `json:"stage"`    // toplantıda ekranını paylaşan kişi (boş: yok)
-	Speaking   []int          `json:"speaking"` // sesli görüşmede o an konuşanlar (0: bu bilgisayar)
-	AllowFiles bool           `json:"allowFiles"`
-	MaxViewers int            `json:"maxViewers"`
-	Pending    *Pending       `json:"pending"`
-	Perms      Perms          `json:"perms"`
-	Video      string         `json:"video"` // starting | downloading | on | error
-	VideoMsg   string         `json:"videoMsg"`
+	Tunnel      string         `json:"tunnel"` // starting | downloading | on | error
+	TunnelMsg   string         `json:"tunnelMsg"`
+	ID          string         `json:"id"`
+	Password    string         `json:"password"`
+	AutoAccept  bool           `json:"autoAccept"`
+	Concurrent  bool           `json:"concurrent"` // aynı anda kullanım (simülasyon modu)
+	Sessions    []Session      `json:"sessions"`
+	Chat        []host.ChatMsg `json:"chat"`
+	Received    []RecvFile     `json:"received"` // bağlananlardan alınan dosyalar
+	Privacy     bool           `json:"privacy"`  // gizlilik modu (ekran karartıldı)
+	Stage       string         `json:"stage"`    // toplantıda ekranını paylaşan kişi (boş: yok)
+	Speaking    []int          `json:"speaking"` // sesli görüşmede o an konuşanlar (0: bu bilgisayar)
+	AllowFiles  bool           `json:"allowFiles"`
+	QuitOnClose bool           `json:"quitOnClose"` // ana pencere kapanınca uygulamadan çık
+	Tray        bool           `json:"tray"`        // bildirim alanı simgesi var (Windows)
+	MaxViewers  int            `json:"maxViewers"`
+	Pending     *Pending       `json:"pending"`
+	Perms       Perms          `json:"perms"`
+	Video       string         `json:"video"` // starting | downloading | on | error
+	VideoMsg    string         `json:"videoMsg"`
 
 	// Buluşma sunucusu: kalıcı cihaz ID'si ve bağlantı durumu.
 	DeviceID string `json:"deviceId"`
@@ -947,7 +949,10 @@ func (a *App) openUI() {
 	}
 	onClose := func() {
 		a.mainOpen.Store(false)
-		if !a.trayOn {
+		a.mu.Lock()
+		quit := a.set.QuitOnClose
+		a.mu.Unlock()
+		if !a.trayOn || quit {
 			a.Quit()
 			return
 		}
@@ -1051,14 +1056,18 @@ func (a *App) startTray() {
 	a.trayOn = tray.Start(tray.Options{
 		Icon:    icon,
 		Tooltip: AppName,
-		OnClick: a.showMain,
+		OnClick: a.trayClick,
 		Menu: func() []tray.Item {
 			a.mu.Lock()
 			online, n := a.st.Online, len(a.st.Sessions)
 			a.mu.Unlock()
 			items := []tray.Item{{Label: AppName + "'i aç", Bold: true, OnClick: a.showMain}}
 			if n > 0 {
-				items = append(items, tray.Item{Label: fmt.Sprintf("Oturum paneli (%d kişi bağlı)", n), OnClick: a.showPanel})
+				label := fmt.Sprintf("Oturum panelini aç (%d kişi bağlı)", n)
+				if panelOpen() {
+					label = "Oturum panelini kapat"
+				}
+				items = append(items, tray.Item{Label: label, OnClick: a.togglePanel})
 			}
 			items = append(items,
 				tray.Item{},
@@ -1072,7 +1081,28 @@ func (a *App) startTray() {
 	})
 	if a.trayOn {
 		log.Printf("bildirim alanı simgesi hazır")
+		a.update(func(s *State) { s.Tray = true })
 	}
+}
+
+// trayClick: biri bağlıyken sağ alttaki oturum panelini açar/kapatır; değilse ana pencereyi açar.
+func (a *App) trayClick() {
+	a.mu.Lock()
+	n := len(a.st.Sessions)
+	a.mu.Unlock()
+	if n > 0 {
+		a.togglePanel()
+		return
+	}
+	a.showMain()
+}
+
+func (a *App) togglePanel() {
+	if panelOpen() {
+		closePanel()
+		return
+	}
+	a.showPanel()
 }
 
 // showMain, ana pencereyi öne getirir; kapalıysa yeniden açar.

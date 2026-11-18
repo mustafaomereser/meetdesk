@@ -65,7 +65,7 @@ func openPanel(url, dataDir string) {
 		return
 	}
 	w, err := frame.Open(frame.Options{
-		URL: url, Title: AppName + " · Oturum", W: 380, H: 600, MinW: 320, MinH: 360,
+		URL: url, Title: AppName + " · Oturum", W: 360, H: 560, MinW: 320, MinH: 420,
 		DataDir: filepath.Join(dataDir, "webview"), Corner: true,
 		OnClose: func() {
 			nativeMu.Lock()
@@ -93,6 +93,12 @@ func focusPanel() bool {
 	}
 	w.Focus()
 	return true
+}
+
+func panelOpen() bool {
+	nativeMu.Lock()
+	defer nativeMu.Unlock()
+	return panelWin != nil
 }
 
 func closePanel() {

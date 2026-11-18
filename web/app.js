@@ -197,6 +197,7 @@ let sessKey = '';
 function renderSessions(list) {
   const n = list.length;
   $('navMeetCount').textContent = n;
+  $('ptPeople').textContent = n;
   $('navMeetCount').classList.toggle('hidden', n === 0);
   $('sessionBox').classList.toggle('hidden', n === 0);
   $('meetEmpty').classList.toggle('hidden', n > 0);
@@ -279,11 +280,19 @@ function renderMeeting(s) {
       prev = m;
     }
     if (atBottom || chat.length > chatSeen) box.scrollTop = box.scrollHeight;
-    if (chat.length > chatSeen && chatSeen > 0 && currentPage !== 'meeting') {
+    const away = panelMode ? panelTab !== 'chat' : currentPage !== 'meeting';
+    if (chat.length > chatSeen && away) {
       const last = chat[chat.length - 1];
-      if (last.id !== 0) toast(`${last.n}: ${last.text.slice(0, 80)}`);
+      if (last.id !== 0 && chatSeen > 0 && !panelMode) toast(`${last.n}: ${last.text.slice(0, 80)}`);
+      if (panelMode) {
+        // Panelde okunmamış mesaj sayısı sekmede görünür
+        const unread = chat.slice(chatSeen).filter((m) => m.id !== 0).length;
+        $('ptChat').textContent = unread > 9 ? '9+' : String(unread);
+        $('ptChat').classList.toggle('hidden', unread === 0);
+      }
+    } else {
+      chatSeen = chat.length;
     }
-    chatSeen = chat.length;
   }
 
   const recv = s.received || [];
@@ -390,9 +399,12 @@ for (const k of SWITCHES) {
 }
 
 $('maxViewers').onchange = (e) => api('settings', { maxViewers: +e.target.value }).catch((err) => toast(err.message));
+$('closeMode').onchange = (e) => api('settings', { quitOnClose: e.target.value === 'quit' }).catch((err) => toast(err.message));
 
 function renderSettings(s) {
   if (document.activeElement !== $('maxViewers')) $('maxViewers').value = String(s.maxViewers || 5);
+  $('closeRow').classList.toggle('hidden', !s.tray);
+  if (document.activeElement !== $('closeMode')) $('closeMode').value = s.quitOnClose ? 'quit' : 'bg';
   for (const k of SWITCHES) {
     if (document.activeElement !== $(k)) $(k).checked = !!s[k];
   }
@@ -450,12 +462,27 @@ function showPage(name) {
   currentPage = name;
   for (const p of PAGES) $('page-' + p).classList.toggle('hidden', p !== name);
   for (const a of document.querySelectorAll('.nav')) a.classList.toggle('on', a.dataset.page === name);
-  if (name === 'meeting') chatSeen = (state && state.chat || []).length;
+  if (name === 'meeting' && !panelMode) chatSeen = (state && state.chat || []).length;
   document.querySelector('.content').scrollTop = 0;
 }
 window.addEventListener('hashchange', () => showPage(location.hash.slice(1)));
+// Panel sekmeleri: Kişiler / Sohbet / Araçlar (sayfa kaymaz, her sekme kendi içinde kayar).
+let panelTab = 'people';
+function setPanelTab(t) {
+  panelTab = t;
+  document.body.dataset.tab = t;
+  for (const b of document.querySelectorAll('.ptabs [data-tab]')) b.classList.toggle('on', b.dataset.tab === t);
+  if (t === 'chat') {
+    chatSeen = (state && state.chat || []).length;
+    $('ptChat').classList.add('hidden');
+    $('chatList').scrollTop = $('chatList').scrollHeight;
+    setTimeout(() => $('chatInput').focus(), 0);
+  }
+}
+for (const b of document.querySelectorAll('.ptabs [data-tab]')) b.onclick = () => setPanelTab(b.dataset.tab);
 if (panelMode) {
   document.body.classList.add('panel');
+  setPanelTab('people');
   document.title = 'Meetdesk · Oturum';
   $('openMain').classList.remove('hidden');
   $('openMain').onclick = () => api('ui/main').catch(() => {});

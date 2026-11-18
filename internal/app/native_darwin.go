@@ -14,5 +14,6 @@ func focusNativeMain() bool         { return false }
 func openPanel(url, dataDir string) {}
 func focusPanel() bool              { return false }
 func closePanel()                   {}
+func panelOpen() bool               { return false }
 
 func viewerDataDir(dataDir string) string { return "" }
