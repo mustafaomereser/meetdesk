@@ -61,8 +61,9 @@ type videoHub struct {
 	dead   bool
 
 	wake    chan struct{}
-	keyReq  atomic.Bool
-	lastKey time.Time // yalnızca kodlayıcı goroutine'i
+	keyReq  atomic.Bool // bir izleyici anahtar kare bekliyor (geride kaldı / çözücüsünü kaybetti)
+	joinReq atomic.Bool // yeni katılan izleyici anahtar kare bekliyor (hemen verilir)
+	lastKey time.Time   // yalnızca kodlayıcı goroutine'i
 
 	rate, upNeed int // uyarlamalı bit hızı (yalnızca kodlayıcı goroutine'i)
 }
@@ -81,7 +82,7 @@ func (srv *Server) videoSub(key hubKey, bin, enc string) (*videoHub, *hubSub) {
 		}
 		h = srv.vhubs[key]
 		existed = h != nil
-		if h != nil && h.enc != enc {
+		if h != nil && (h.enc != enc || h.dead) {
 			h = nil // kodlayıcı değişti (ör. kurulum sonrası): yenisi açılır, eskisi abonesi bitince kapanır
 		}
 		if h == nil {
@@ -100,7 +101,9 @@ func (srv *Server) videoSub(key hubKey, bin, enc string) (*videoHub, *hubSub) {
 		standaloneHubs.Unlock()
 	}
 	if existed {
-		h.requestKey() // zaten çalışan kodlayıcıya katılan izleyici anahtar kareden başlamalı
+		// Çalışan kodlayıcıya katılan izleyici anahtar kareden başlamalı. Kodlayıcı zaten
+		// ilk (anahtar) karesini üretmek üzereyse onu alır; istek o kare dağıtılınca düşer.
+		h.joinReq.Store(true)
 	}
 	h.poke()
 	return h, sub
@@ -113,23 +116,43 @@ func newVideoHub(srv *Server, key hubKey, bin, enc string) *videoHub {
 	return h
 }
 
-// unsubscribe, izleyiciyi çıkarır; son izleyici çıkınca kodlayıcı kapanır.
+// hubLinger: son izleyici çıkınca ffmpeg hemen kapanır ama ekran yakalayıcı bu süre açık
+// kalır; monitörler arasında gidip gelince yakalama baştan kurulmaz.
+const hubLinger = 20 * time.Second
+
+// unsubscribe, izleyiciyi çıkarır. Kimse kalmazsa kodlayıcı durur, bir süre sonra kapanır.
 func (h *videoHub) unsubscribe(sub *hubSub) {
+	h.mu.Lock()
+	delete(h.subs, sub)
+	h.mu.Unlock()
+	if h.srv == nil {
+		h.cancel()
+	}
+	h.poke()
+}
+
+// retire, izleyicisiz kalan kodlayıcıyı kayıttan siler. Bu arada biri katıldıysa false.
+func (h *videoHub) retire() bool {
 	if h.srv != nil {
 		h.srv.vhubMu.Lock()
 		defer h.srv.vhubMu.Unlock()
 	}
 	h.mu.Lock()
-	delete(h.subs, sub)
-	empty := len(h.subs) == 0
-	h.mu.Unlock()
-	if empty {
-		h.cancel()
-		if h.srv != nil && h.srv.vhubs[h.key] == h {
-			delete(h.srv.vhubs, h.key)
-		}
+	defer h.mu.Unlock()
+	if len(h.subs) > 0 {
+		return false
 	}
-	h.poke()
+	h.dead = true
+	if h.srv != nil && h.srv.vhubs[h.key] == h {
+		delete(h.srv.vhubs, h.key)
+	}
+	return true
+}
+
+func (h *videoHub) subCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return len(h.subs)
 }
 
 func (h *videoHub) poke() {
@@ -168,6 +191,10 @@ func (h *videoHub) fail(err error) {
 func (h *videoHub) broadcast(hf hubFrame) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if hf.f.Key {
+		h.keyReq.Store(false) // bu kare bekleyenleri karşılar; karşılayamazsa aşağıda yeniden kurulur
+		h.joinReq.Store(false)
+	}
 	for sub := range h.subs {
 		if sub.needKey {
 			if !hf.f.Key {
@@ -225,12 +252,15 @@ func (h *videoHub) run(ctx context.Context) {
 	gen := 0
 	var deaths []time.Time
 	for ctx.Err() == nil {
+		if h.subCount() == 0 && !h.idle(ctx) {
+			return
+		}
 		gen++
 		err := h.encode(ctx, grab, gen, maxRate)
 		if ctx.Err() != nil {
 			return
 		}
-		if errors.Is(err, errRestart) {
+		if errors.Is(err, errRestart) || errors.Is(err, errNoViewers) {
 			continue
 		}
 		if errors.Is(err, errVideoFailed) {
@@ -254,10 +284,35 @@ func (h *videoHub) run(ctx context.Context) {
 	}
 }
 
+var errNoViewers = errors.New("izleyici kalmadı")
+
+// idle, izleyici gelene kadar bekler (true); hubLinger boyunca gelmezse kapanır (false).
+func (h *videoHub) idle(ctx context.Context) bool {
+	deadline := time.Now().Add(hubLinger)
+	for {
+		if h.subCount() > 0 {
+			return true
+		}
+		if time.Now().After(deadline) {
+			if h.retire() {
+				return false
+			}
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-h.wake:
+		case <-time.After(time.Until(deadline)):
+		}
+	}
+}
+
 // encode, bir ffmpeg süreci boyunca çalışır. errRestart: yeniden başlatılmalı (anahtar
 // kare isteği, bit hızı ya da çözünürlük değişimi).
 func (h *videoHub) encode(ctx context.Context, grab func() (*capture.Frame, time.Duration, error), gen, maxRate int) error {
 	// İlk kare (kilit ekranı/UAC'de yakalama bir süre başarısız olabilir)
+	t0 := time.Now()
 	var f *capture.Frame
 	for {
 		var err error
@@ -276,19 +331,26 @@ func (h *videoHub) encode(ctx context.Context, grab func() (*capture.Frame, time
 
 	ectx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	tGrab := time.Since(t0)
 	e, err := video.Start(ectx, h.bin, h.enc, inW, inH, outW, outH, maxFPS, rate)
 	if err != nil {
 		return fmt.Errorf("%w: %v", errVideoFailed, err)
 	}
 	defer e.Close()
 	h.keyReq.Store(false) // yeni kodlayıcının ilk karesi anahtar karedir
+	h.joinReq.Store(false)
 	h.lastKey = time.Now()
+	var out atomic.Int32 // üretilen kare sayısı; ilk (anahtar) kare çıkmadan yeniden başlatma yok
 
 	sendErr := make(chan error, 1)
 	go func() {
 		got := 0
 		for fr := range e.Frames() {
 			got++
+			out.Add(1)
+			if got == 1 {
+				log.Printf("kodlayıcı hazır: %v (ilk yakalama %v), anahtar kare %d KB, %.1f Mbps", time.Since(t0).Round(time.Millisecond), tGrab.Round(time.Millisecond), len(fr.Data)>>10, float64(rate)/1e6)
+			}
 			h.broadcast(hubFrame{f: fr, w: outW, h: outH, rate: rate, gen: gen})
 		}
 		if ectx.Err() != nil {
@@ -316,15 +378,14 @@ func (h *videoHub) encode(ctx context.Context, grab func() (*capture.Frame, time
 		default:
 		}
 		subs := h.snapshot()
-		if len(subs) == 0 { // son izleyici çıkıyor: kapanış bekleniyor
-			if !sleepCtx(ctx, 50*time.Millisecond) {
-				return ctx.Err()
-			}
-			continue
+		if len(subs) == 0 {
+			return errNoViewers // ffmpeg kapanır, yakalayıcı bir süre açık kalır
 		}
 		// Anahtar kare: ffmpeg'e komut satırından "şimdi anahtar kare" denemediği için
-		// kodlayıcı yeniden başlatılır (izleyicilerde görüntü kesilmez).
-		if h.keyReq.Load() && time.Since(h.lastKey) >= 2*time.Second {
+		// kodlayıcı yeniden başlatılır (izleyicilerde görüntü kesilmez). Yeni katılan hemen,
+		// geride kalan en çok 2 sn'de bir (her anahtar kare herkese ek yük).
+		sinceKey := time.Since(h.lastKey)
+		if out.Load() > 0 && (h.joinReq.Load() && sinceKey >= 250*time.Millisecond || h.keyReq.Load() && sinceKey >= 2*time.Second) {
 			return errRestart
 		}
 		if restart := h.adaptRate(subs, rate, maxRate); restart {

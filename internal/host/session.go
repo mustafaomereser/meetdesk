@@ -861,8 +861,8 @@ func (s *session) h264Loop(ctx context.Context) error {
 			return errRestart
 		}
 		if s.keyframe.Swap(false) {
-			waitKey = true // izleyici çözücüsünü kaybetti
-			hub.requestKey()
+			waitKey = true // izleyici çözücüsünü kaybetti: hemen anahtar kare
+			hub.joinReq.Store(true)
 		}
 		if w > 0 {
 			pf.report(ctx, s.c, fl, w, h, rate)
