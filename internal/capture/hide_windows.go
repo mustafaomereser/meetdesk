@@ -294,13 +294,12 @@ var (
 )
 
 // Animasyonlar: Windows küçültme/geri açma, büyütme ve kapanma animasyonlarını pencerenin
-// görüntüsünden ayrıca çizer; pencere o sırada "küçültülmüş" ya da yok görünür. Bu yüzden
-// gizlenen pencerelerin durumu izlenir ve geçişlerde fazladan karartılır:
-//   - küçültme / geri açma: pencerenin bulunduğu monitörün tamamı kısa süre
-//   - büyütme / yerleştirme (konum sıçraması): eski ve yeni alanın birleşimi kısa süre
-//   - kapanma / gizlenme: son alanı kısa süre
-// Görev çubuğu önizlemesi ve Alt+Tab ekranı gizlenen pencerenin küçük görüntüsünü de
-// gösterir: gizlenen bir pencere varken bunlar açıksa monitör karartılır.
+// görüntüsünden ayrıca çizer; pencere o sırada "küçültülmüş" ya da yok görünür ve içerik
+// karartmadan kaçardı. Gizlenen pencerelerin animasyonları kapatılır (DWM
+// TRANSITIONS_FORCEDISABLED; pencere anında küçülür/açılır) ve görev çubuğu "göz at"
+// önizlemesinden çıkarılır; görev çubuğu küçük resmi ve Alt+Tab'da canlı görüntü yerine
+// simgesi gösterilir. Gizleme kalkınca hepsi eski hâline döner. Güvence olarak geçişlerde
+// pencerenin son alanı kısa süre karartılır. Ekranın geri kalanına dokunulmaz.
 const (
 	animIconic = 700 * time.Millisecond
 	animMove   = 450 * time.Millisecond
@@ -308,6 +307,7 @@ const (
 )
 
 type winState struct {
+	hwnd     uintptr
 	rect     rect
 	iconic   bool
 	trans    time.Time // küçültme / geri açma başladı
@@ -317,19 +317,22 @@ type winState struct {
 }
 
 var (
-	winStates = map[uintptr]*winState{}
-	procClass = user32.NewProc("GetClassNameW")
+	winStates          = map[uintptr]*winState{}
+	procClass          = user32.NewProc("GetClassNameW")
+	procDwmSetWindowAt = dwmapi.NewProc("DwmSetWindowAttribute")
+	procIsWindow       = user32.NewProc("IsWindow")
 )
 
-// switcher, görev çubuğu önizlemesi / Alt+Tab / görev görünümü penceresi mi.
-func switcher(hwnd uintptr) bool {
-	var buf [64]uint16
-	n, _, _ := procClass.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
-	switch windows.UTF16ToString(buf[:n]) {
-	case "TaskListThumbnailWnd", "XamlExplorerHostIslandWindow", "MultitaskingViewFrame", "TaskSwitcherWnd", "TaskSwitcherOverlayWnd":
-		return true
+// setQuiet, pencerenin DWM animasyonlarını ve "göz at" önizlemesini kapatır/açar.
+func setQuiet(hwnd uintptr, on bool) {
+	v := int32(0)
+	if on {
+		v = 1
 	}
-	return false
+	// FORCE_ICONIC_REPRESENTATION: görev çubuğu küçük resmi ve Alt+Tab'da canlı görüntü yerine simge.
+	for _, attr := range []uintptr{3 /* TRANSITIONS_FORCEDISABLED */, 7 /* FORCE_ICONIC_REPRESENTATION */, 11 /* DISALLOW_PEEK */, 12 /* EXCLUDED_FROM_PEEK */} {
+		procDwmSetWindowAt.Call(hwnd, attr, uintptr(unsafe.Pointer(&v)), 4)
+	}
 }
 
 func union(a, b rect) rect {
@@ -345,8 +348,6 @@ func hiddenRects(d Display) []rect {
 	defer hideMu.Unlock()
 	disp := rect{d.X, d.Y, d.X + d.W, d.Y + d.H}
 	now := time.Now()
-	hiddenOpen := len(winStates) > 0 // gizlenen bir pencere var (önizlemesi de gizlenmeli)
-	full := false
 	var occ, out []rect
 	walkFn = func(hwnd uintptr) bool {
 		if v, _, _ := procIsWindowVisible.Call(hwnd); v == 0 {
@@ -367,8 +368,9 @@ func hiddenRects(d Display) []rect {
 			st := winStates[hwnd]
 			r := winRect(hwnd)
 			if st == nil {
-				st = &winState{rect: r, iconic: iconic}
+				st = &winState{hwnd: hwnd, rect: r, iconic: iconic}
 				winStates[hwnd] = st
+				setQuiet(hwnd, true)
 			}
 			st.lastSeen = now
 			if iconic != st.iconic {
@@ -381,8 +383,10 @@ func hiddenRects(d Display) []rect {
 				st.rect = r
 			}
 			st.iconic = iconic
-			if now.Sub(st.trans) < animIconic && !st.rect.and(disp).empty() {
-				full = true
+			if now.Sub(st.trans) < animIconic {
+				if a := st.rect.and(disp); !a.empty() {
+					out = append(out, a) // animasyon kapalı olsa da güvence
+				}
 			}
 			if now.Sub(st.animAt) < animMove {
 				if a := st.anim.and(disp); !a.empty() {
@@ -417,12 +421,6 @@ func hiddenRects(d Display) []rect {
 		if iconic {
 			return true
 		}
-		if hiddenOpen && switcher(hwnd) {
-			if !frameRect(hwnd).and(disp).empty() {
-				full = true // önizleme / Alt+Tab gizlenen pencerenin küçük görüntüsünü gösterebilir
-			}
-			return true
-		}
 		// Yalnızca opak, normal pencereler alttakini örter. Saydam/katmanlı pencereler
 		// (bindirmeler, çizim katmanları) örtmüyor sayılır: gizlenen pencere görünmeye başlamasın.
 		if ex := exStyle(hwnd); ex&(wsExLayered|wsExTransparent) == 0 {
@@ -447,10 +445,10 @@ func hiddenRects(d Display) []rect {
 			}
 			continue
 		}
+		if v, _, _ := procIsWindow.Call(h); v != 0 {
+			setQuiet(h, false) // gizleme kalktı (pencere hâlâ var): animasyonları geri aç
+		}
 		delete(winStates, h)
-	}
-	if full {
-		out = []rect{disp}
 	}
 	for i := range out {
 		out[i].x0 -= d.X
