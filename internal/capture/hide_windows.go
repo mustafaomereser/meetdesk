@@ -304,9 +304,9 @@ var (
 // durumunun okunması arasındaki çok kısa çakışmayı kapatır (uzun tutulunca pencere gittikten
 // sonra karartma ekranda boşuna kalıyordu).
 const (
-	animIconic = 120 * time.Millisecond
-	animMove   = 150 * time.Millisecond
-	animGone   = 150 * time.Millisecond
+	animIconic = 50 * time.Millisecond
+	animMove   = 50 * time.Millisecond
+	animGone   = 50 * time.Millisecond
 )
 
 type winState struct {
