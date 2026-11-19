@@ -66,6 +66,7 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
   - Seçilen pencereler bağlananlara giden görüntüde çizgili koyu bir alanla karartılır; bilgisayarın başındaki kişi normal görür. Ör. toplantı sırasında WhatsApp'ta gezinirken.
   - Bir programın tümü, tek bir pencere (ör. Chrome'da açılan "WhatsApp Web") ya da başlığında bir kelime geçen bütün pencereler gizlenebilir.
   - Programın menüleri ve açılır pencereleri de gizlenir. Üstüne başka bir pencere gelirse o kısım normal görünür.
+  - Küçültme, geri açma, büyütme ve kapanma animasyonlarında, görev çubuğu önizlemesinde ve Alt+Tab ekranında da içerik görünmez (bu anlarda ekran kısa süre karartılır).
   - Toplantı > Araçlar > Pencere gizle ya da Ayarlar > Bağlananlardan gizlenenler. Liste kalıcıdır.
 - **Dosya aktarımı:**
   - İki yönlü, sürükle-bırakla.

@@ -191,8 +191,9 @@ func (c *Capturer) Capture(d Display) (*Frame, error) {
 	if err := c.ensure(d.W, d.H); err != nil {
 		return nil, err
 	}
-	mask := hiddenRects(d)
-	if c.dxgiCapture(d, mask) {
+	// Karartılacak alanlar kare alındıktan sonra hesaplanır: pencere tam o arada küçültülmeye
+	// başladıysa (animasyon) kare açıkta kalmasın.
+	if c.dxgiCapture(d) {
 		return &c.frame, nil
 	}
 	r, _, err := procBitBlt.Call(c.memDC, 0, 0, uintptr(d.W), uintptr(d.H), c.screenDC, uintptr(d.X), uintptr(d.Y), srcCopy)
@@ -200,6 +201,7 @@ func (c *Capturer) Capture(d Display) (*Frame, error) {
 		return nil, fmt.Errorf("BitBlt: %v", err)
 	}
 	procGdiFlush.Call()
+	mask := hiddenRects(d)
 	applyMask(&c.frame, mask)
 	c.mask = mask
 	c.drawCursor(d)
@@ -208,7 +210,7 @@ func (c *Capturer) Capture(d Display) (*Frame, error) {
 }
 
 // dxgiCapture, kareyi DXGI ile DIB'e alır. false dönerse çağıran GDI ile devam eder.
-func (c *Capturer) dxgiCapture(d Display, mask []rect) bool {
+func (c *Capturer) dxgiCapture(d Display) bool {
 	if c.dx != nil && c.dx.d != d {
 		c.dx.release()
 		c.dx = nil
@@ -223,6 +225,7 @@ func (c *Capturer) dxgiCapture(d Display, mask []rect) bool {
 			c.dxLog = true
 			log.Printf("capture: DXGI Desktop Duplication %dx%d", d.W, d.H)
 		}
+		mask := hiddenRects(d)
 		applyMask(&c.frame, mask)
 		c.mask = mask
 		c.drawCursor(d)
@@ -231,7 +234,7 @@ func (c *Capturer) dxgiCapture(d Display, mask []rect) bool {
 	case dxgiSame:
 		// Ekran ve imleç değişmedi: DIB'deki kare hâlâ geçerli. Gizleme listesi değiştiyse
 		// (ör. bir program listeden çıkarıldı) kare baştan alınır.
-		return sameRects(mask, c.mask)
+		return sameRects(hiddenRects(d), c.mask)
 	}
 	return false
 }

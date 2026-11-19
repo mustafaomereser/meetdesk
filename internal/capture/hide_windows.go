@@ -293,6 +293,49 @@ var (
 	})
 )
 
+// Animasyonlar: Windows küçültme/geri açma, büyütme ve kapanma animasyonlarını pencerenin
+// görüntüsünden ayrıca çizer; pencere o sırada "küçültülmüş" ya da yok görünür. Bu yüzden
+// gizlenen pencerelerin durumu izlenir ve geçişlerde fazladan karartılır:
+//   - küçültme / geri açma: pencerenin bulunduğu monitörün tamamı kısa süre
+//   - büyütme / yerleştirme (konum sıçraması): eski ve yeni alanın birleşimi kısa süre
+//   - kapanma / gizlenme: son alanı kısa süre
+// Görev çubuğu önizlemesi ve Alt+Tab ekranı gizlenen pencerenin küçük görüntüsünü de
+// gösterir: gizlenen bir pencere varken bunlar açıksa monitör karartılır.
+const (
+	animIconic = 700 * time.Millisecond
+	animMove   = 450 * time.Millisecond
+	animGone   = 450 * time.Millisecond
+)
+
+type winState struct {
+	rect     rect
+	iconic   bool
+	trans    time.Time // küçültme / geri açma başladı
+	anim     rect      // konum sıçramasında eski ∪ yeni
+	animAt   time.Time
+	lastSeen time.Time
+}
+
+var (
+	winStates = map[uintptr]*winState{}
+	procClass = user32.NewProc("GetClassNameW")
+)
+
+// switcher, görev çubuğu önizlemesi / Alt+Tab / görev görünümü penceresi mi.
+func switcher(hwnd uintptr) bool {
+	var buf [64]uint16
+	n, _, _ := procClass.Call(hwnd, uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	switch windows.UTF16ToString(buf[:n]) {
+	case "TaskListThumbnailWnd", "XamlExplorerHostIslandWindow", "MultitaskingViewFrame", "TaskSwitcherWnd", "TaskSwitcherOverlayWnd":
+		return true
+	}
+	return false
+}
+
+func union(a, b rect) rect {
+	return rect{min(a.x0, b.x0), min(a.y0, b.y0), max(a.x1, b.x1), max(a.y1, b.y1)}
+}
+
 // hiddenRects, d monitöründe karartılacak alanları (kareye göre koordinatlarla) döner.
 func hiddenRects(d Display) []rect {
 	if !hideAny.Load() && !hideOwn.Load() {
@@ -301,14 +344,19 @@ func hiddenRects(d Display) []rect {
 	hideMu.Lock()
 	defer hideMu.Unlock()
 	disp := rect{d.X, d.Y, d.X + d.W, d.Y + d.H}
+	now := time.Now()
+	hiddenOpen := len(winStates) > 0 // gizlenen bir pencere var (önizlemesi de gizlenmeli)
+	full := false
 	var occ, out []rect
 	walkFn = func(hwnd uintptr) bool {
 		if v, _, _ := procIsWindowVisible.Call(hwnd); v == 0 {
 			return true
 		}
-		if ic, _, _ := procIsIconic.Call(hwnd); ic != 0 || cloaked(hwnd) {
+		if cloaked(hwnd) {
 			return true
 		}
+		ic, _, _ := procIsIconic.Call(hwnd)
+		iconic := ic != 0
 		hit := hideOwn.Load() && ownWindow(hwnd) || matchLocked(hwnd)
 		if !hit {
 			if o, _, _ := procGetAncestor.Call(hwnd, gaRootOwner); o != 0 && o != hwnd {
@@ -316,8 +364,36 @@ func hiddenRects(d Display) []rect {
 			}
 		}
 		if hit {
+			st := winStates[hwnd]
+			r := winRect(hwnd)
+			if st == nil {
+				st = &winState{rect: r, iconic: iconic}
+				winStates[hwnd] = st
+			}
+			st.lastSeen = now
+			if iconic != st.iconic {
+				st.trans = now // küçültme ya da geri açma animasyonu başladı
+			}
+			if !iconic && !st.iconic && r != st.rect {
+				st.anim, st.animAt = union(st.rect, r), now
+			}
+			if !iconic {
+				st.rect = r
+			}
+			st.iconic = iconic
+			if now.Sub(st.trans) < animIconic && !st.rect.and(disp).empty() {
+				full = true
+			}
+			if now.Sub(st.animAt) < animMove {
+				if a := st.anim.and(disp); !a.empty() {
+					out = append(out, a)
+				}
+			}
+			if iconic {
+				return true
+			}
 			// Gölge/kenar dahil bütün pencere alanı; üstteki pencerelerin kapattığı kısım çıkarılır.
-			r := winRect(hwnd).and(disp)
+			r = r.and(disp)
 			if r.empty() {
 				return true
 			}
@@ -338,6 +414,15 @@ func hiddenRects(d Display) []rect {
 			out = append(out, pieces...)
 			return true
 		}
+		if iconic {
+			return true
+		}
+		if hiddenOpen && switcher(hwnd) {
+			if !frameRect(hwnd).and(disp).empty() {
+				full = true // önizleme / Alt+Tab gizlenen pencerenin küçük görüntüsünü gösterebilir
+			}
+			return true
+		}
 		// Yalnızca opak, normal pencereler alttakini örter. Saydam/katmanlı pencereler
 		// (bindirmeler, çizim katmanları) örtmüyor sayılır: gizlenen pencere görünmeye başlamasın.
 		if ex := exStyle(hwnd); ex&(wsExLayered|wsExTransparent) == 0 {
@@ -349,6 +434,24 @@ func hiddenRects(d Display) []rect {
 	}
 	procEnumWindows.Call(walkCB, 0)
 	walkFn = nil
+	// Kapanan / gizlenen pencereler: kapanma animasyonu bitene kadar son alanı.
+	for h, st := range winStates {
+		if st.lastSeen.Equal(now) {
+			continue
+		}
+		if now.Sub(st.lastSeen) < animGone {
+			if !st.iconic {
+				if a := st.rect.and(disp); !a.empty() {
+					out = append(out, a)
+				}
+			}
+			continue
+		}
+		delete(winStates, h)
+	}
+	if full {
+		out = []rect{disp}
+	}
 	for i := range out {
 		out[i].x0 -= d.X
 		out[i].x1 -= d.X
