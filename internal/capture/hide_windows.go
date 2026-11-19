@@ -300,10 +300,13 @@ var (
 // önizlemesinden çıkarılır; görev çubuğu küçük resmi ve Alt+Tab'da canlı görüntü yerine
 // simgesi gösterilir. Gizleme kalkınca hepsi eski hâline döner. Güvence olarak geçişlerde
 // pencerenin son alanı kısa süre karartılır. Ekranın geri kalanına dokunulmaz.
+// Animasyonlar kapalı olduğundan pencere anında gider; bu süreler yalnızca kare ile pencere
+// durumunun okunması arasındaki çok kısa çakışmayı kapatır (uzun tutulunca pencere gittikten
+// sonra karartma ekranda boşuna kalıyordu).
 const (
-	animIconic = 700 * time.Millisecond
-	animMove   = 450 * time.Millisecond
-	animGone   = 450 * time.Millisecond
+	animIconic = 120 * time.Millisecond
+	animMove   = 150 * time.Millisecond
+	animGone   = 150 * time.Millisecond
 )
 
 type winState struct {
