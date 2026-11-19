@@ -962,3 +962,17 @@ body.no-hide .hide-only { display: none !important; }
 .hide-pick .hide-win .row-title { font-weight: 400; color: var(--muted); }
 .hide-pick .hide-win .row-hint { display: none; }
 .hide-pick .hide-group { padding-bottom: 4px; }
+
+/* izin gerektiren düğme (ör. çizim): kilitli görünür, tıklayınca izin istenir */
+.vbtn.locked { opacity: .55; }
+.vbtn.locked::after { content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.vbtn { position: relative; }
+
+/* kişi satırı: Kontrol ve Çizim anahtarları alt alta */
+.ctl-col { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex: none; }
+.ctl-col .ctl-toggle { justify-content: flex-end; }
+/* izin istekleri */
+.asks { display: flex; flex-direction: column; gap: 8px; }
+.asks:empty { display: none; }
+.banner.ask { background: rgba(255, 202, 22, .08); border-color: rgba(255, 202, 22, .35); }
+.ask-text { min-width: 0; overflow-wrap: anywhere; }

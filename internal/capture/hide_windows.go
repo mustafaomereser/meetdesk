@@ -55,10 +55,15 @@ var (
 	hideMu    sync.Mutex
 	hideRules []HideRule
 	hideAny   atomic.Bool
+	hideOwn   atomic.Bool // bu uygulamanın kendi pencereleri (şifre, ayarlar) her zaman gizli
 	ownPID    = windows.GetCurrentProcessId()
 	exeCache  = map[uint32]string{}
 	exeAt     time.Time
 )
+
+// SetHideOwn, bu uygulamanın kendi pencerelerinin (ana pencere, oturum paneli) bağlananlara
+// karartılmış gitmesini açar. Saydam bindirme pencereleri (çizim, işaret, ad etiketi) hariç.
+func SetHideOwn(on bool) { hideOwn.Store(on) }
 
 // HideRule: Exe boş değilse yalnızca o program; Title boş değilse başlığında o geçen
 // pencereler (büyük/küçük harf fark etmez).
@@ -80,6 +85,13 @@ func SetHidden(rules []HideRule) {
 		}
 	}
 	hideAny.Store(len(hideRules) > 0)
+}
+
+// ownWindow, pencere bu uygulamanın normal (bindirme olmayan) penceresi mi.
+func ownWindow(hwnd uintptr) bool {
+	var pid uint32
+	procGetWindowThreadProcessId.Call(hwnd, uintptr(unsafe.Pointer(&pid)))
+	return pid == ownPID && exStyle(hwnd)&(wsExLayered|wsExTransparent) == 0
 }
 
 func windowTitle(hwnd uintptr) string {
@@ -283,7 +295,7 @@ var (
 
 // hiddenRects, d monitöründe karartılacak alanları (kareye göre koordinatlarla) döner.
 func hiddenRects(d Display) []rect {
-	if !hideAny.Load() {
+	if !hideAny.Load() && !hideOwn.Load() {
 		return nil
 	}
 	hideMu.Lock()
@@ -297,7 +309,7 @@ func hiddenRects(d Display) []rect {
 		if ic, _, _ := procIsIconic.Call(hwnd); ic != 0 || cloaked(hwnd) {
 			return true
 		}
-		hit := matchLocked(hwnd)
+		hit := hideOwn.Load() && ownWindow(hwnd) || matchLocked(hwnd)
 		if !hit {
 			if o, _, _ := procGetAncestor.Call(hwnd, gaRootOwner); o != 0 && o != hwnd {
 				hit = matchLocked(o)

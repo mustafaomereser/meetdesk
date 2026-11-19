@@ -68,6 +68,9 @@ func (st *inkStore) replay(ctx context.Context, sess *session) {
 
 // handleInk, bir izleyiciden gelen çizim mesajını işler.
 func (s *Server) handleInk(sess *session, m *message) {
+	if m.T != "dru" && !sess.allowed().Draw {
+		return // çizim izni yok (kendi son çizgisini geri almak her zaman serbest)
+	}
 	switch m.T {
 	case "drc":
 		s.ClearInk()

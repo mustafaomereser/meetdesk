@@ -155,3 +155,7 @@ func WaitPID(pid int) {
 
 // TextFocus: macOS'ta henüz desteklenmiyor (telefonda klavye düğmesi kullanılır).
 func TextFocus() bool { return false }
+
+// OwnWindowAt / OwnForeground: macOS'ta henüz yok (uygulamanın kendi penceresi korunmaz).
+func OwnWindowAt(x, y int) bool { return false }
+func OwnForeground() bool       { return false }

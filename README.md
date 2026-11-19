@@ -53,7 +53,8 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
   - Kalem, lazer, 5 renk, geri al, hepsini sil.
   - **İşaret et** aracıyla dokunulan yerde, o kişinin renginde bir daire (kenarı tam renk, içi yarı saydam) hızlıca yanıp söner ve kaybolur.
   - Çizgiler ve işaretler herkeste ve bağlanılan bilgisayarın ekranında görünür.
-  - Windows'ta bağlanılan bilgisayardaki katman ekran yakalamaya girmez, yani görüntüde iki kez çıkmaz.
+  - Windows'ta bağlanılan bilgisayardaki katman ekran yakalamaya girmez, yani görüntüde iki kez çıkmaz. Lazer (neon) çizgi orada da parlar ve sönerek kaybolur.
+  - **İzinle:** Bağlananlar varsayılan olarak çizemez ve işaret edemez. "Çiz" düğmesi izin ister; bilgisayarın başındaki kişi "İzin ver" der ya da kişinin satırındaki **Çizim** anahtarını açar. Herkese baştan izin vermek için Ayarlar > Bağlananların izinleri.
 - **Sunum:**
   - "Herkes benim monitörümü izlesin": sunan kişi monitör değiştirince herkesin görüntüsü de değişir.
   - "Ekranımı herkese göster": kendi bilgisayarını toplantıya açarsın. Toplantıdakiler tek kullanımlık bir toplantı anahtarıyla, onaysız ve yalnızca izleme izniyle bağlanır. Paylaşım bitince anahtar geçersiz olur.
@@ -74,6 +75,8 @@ Go ile yazılmış uzaktan erişim ve toplantı aracı (Windows ve macOS); eski 
   - WebRTC ile, mikrofon izni ister.
   - Toplantıda bağlanılan bilgisayar herkesin sesini birleştirir, herkes herkesi duyar.
 - **Oturum paneli:** Windows'ta biri bağlanınca ekranın sağ altında küçük bir panel açılır. Kişiler, Sohbet ve Araçlar sekmeleri vardır; okunmamış mesaj sayısı sekmede görünür. Saatin yanındaki simgeye tıklayınca açılır ve kapanır.
+  - Panel kapalıyken mesaj, dosya, çizim isteği ya da bağlantı isteği gelirse simgede mavi bir nokta belirir ve kısa bir bildirim çıkar. Panel açılınca nokta kalkar.
+- **Meetdesk'in kendi pencereleri korunur** (Windows): Ana pencere ve oturum paneli bağlananlara karartılmış görünür (ID, şifre, sabit şifre, ayarlar görünmez). Uzaktaki kişinin tıklamaları ve tuşları bu pencerelere ulaşmaz; uygulamayı uzaktan yönetemez.
 
 ### Görüntü
 - **Ekran yakalama:**

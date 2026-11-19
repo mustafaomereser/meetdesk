@@ -226,15 +226,23 @@ function renderSessions(list) {
     meta.appendChild(t);
     who.append(nm, meta);
 
-    const ctl = el('label', 'ctl-toggle');
-    ctl.title = 'Bu kişi fare ve klavyeyi kullanabilsin mi? Kapalıyken yalnızca izler, çizer ve işaret eder.';
-    const sw = document.createElement('input');
-    sw.type = 'checkbox';
-    sw.className = 'switch';
-    sw.checked = !!p.control && !!(state && state.allowControl);
-    sw.disabled = !(state && state.allowControl);
-    sw.onchange = () => api('host/session', { id: p.id, control: sw.checked }).catch((e) => toast(e.message));
-    ctl.append(el('span', '', 'Kontrol'), sw);
+    const ctl = el('div', 'ctl-col');
+    const toggle = (label, title, checked, disabled, body) => {
+      const l = el('label', 'ctl-toggle');
+      l.title = title;
+      const sw = document.createElement('input');
+      sw.type = 'checkbox';
+      sw.className = 'switch';
+      sw.checked = checked;
+      sw.disabled = disabled;
+      sw.onchange = () => api('host/session', Object.assign({ id: p.id }, body(sw.checked))).catch((e) => toast(e.message));
+      l.append(el('span', '', label), sw);
+      return l;
+    };
+    ctl.append(
+      toggle('Kontrol', 'Bu kişi fare ve klavyeyi kullanabilsin mi? Kapalıyken yalnızca izler.', !!p.control && !!(state && state.allowControl), !(state && state.allowControl), (v) => ({ control: v })),
+      toggle('Çizim', 'Bu kişi ekrana çizebilsin ve işaret edebilsin mi?', !!p.draw, false, (v) => ({ draw: v })),
+    );
 
     const acts = el('div', 'person-acts');
     acts.append(
@@ -254,7 +262,31 @@ function renderSessions(list) {
 
 let chatSeen = 0;
 let chatKey = '';
+// Bekleyen izin istekleri (ör. çizim): Kişiler/Sohbet/Araçlar sekmelerinin üstünde.
+let askKey = '';
+function renderAsks(s) {
+  const asks = s.asks || [];
+  const key = JSON.stringify(asks);
+  if (key === askKey) return;
+  askKey = key;
+  const box = $('askBox');
+  box.innerHTML = '';
+  for (const a of asks) {
+    const b = el('div', 'banner ask');
+    const t = el('span', 'ask-text');
+    t.append(el('b', '', a.name), document.createTextNode(' ekrana çizmek istiyor.'));
+    const btns = el('span', 'call-btns');
+    btns.append(
+      smallBtn('Reddet', '', () => api('host/ask', { id: a.id, kind: a.kind, allow: false }).catch((e) => toast(e.message))),
+      smallBtn('İzin ver', '', () => api('host/ask', { id: a.id, kind: a.kind, allow: true }).catch((e) => toast(e.message)), 'primary'),
+    );
+    b.append(t, el('span', 'spacer'), btns);
+    box.appendChild(b);
+  }
+}
+
 function renderMeeting(s) {
+  renderAsks(s);
   $('privacySw').checked = !!s.privacy;
   $('voiceRow').classList.toggle('me-speaking', ((s.speaking) || []).includes(0));
   $('stageBar').classList.toggle('hidden', !s.stage);
@@ -509,7 +541,7 @@ $('inkClear').onclick = () => api('host/inkclear').then(() => toast('Çizimler s
 
 // ---- ayarlar ----
 
-const SWITCHES = ['online', 'autoStart', 'onlineAtStart', 'allowBrowser', 'allowControl', 'allowClipboard', 'allowFiles', 'concurrent'];
+const SWITCHES = ['online', 'autoStart', 'onlineAtStart', 'allowBrowser', 'allowControl', 'allowClipboard', 'allowFiles', 'allowDraw', 'concurrent'];
 for (const k of SWITCHES) {
   $(k).onchange = (e) => api('settings', { [k]: e.target.checked }).catch((err) => { toast(err.message); if (state) render(state); });
 }

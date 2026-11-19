@@ -361,6 +361,7 @@ function onMessage(ev) {
         $('permBadge').title = 'Karşı taraf fare ve klavye iznini kapattı; ekranı yalnızca izleyebilirsin.';
         clipAllowed = !!m.clipboard;
         filesAllowed = m.files !== false;
+        setDrawAllowed(m.draw !== false); // eski sürümler alanı göndermez: serbest
         break;
       case 'secure':
         secureOn = !!m.on;
@@ -1129,7 +1130,34 @@ function setDrawMode(on) {
     canvas.focus();
   }
 }
-$('drawBtn').onclick = (e) => { e.currentTarget.blur(); if (connected || drawMode) setDrawMode(!drawMode); };
+// Çizim ve işaret etme karşı tarafın iznine bağlı (varsayılan kapalı). İzin yoksa düğme
+// izin ister; karşı taraf onaylayınca çizim kendiliğinden açılır.
+let drawAllowed = true;
+let drawAskedAt = 0;
+function setDrawAllowed(on) {
+  const was = drawAllowed;
+  drawAllowed = on;
+  $('drawBtn').classList.toggle('locked', !on);
+  $('drawBtn').title = on ? 'Çiz ve işaret et: bağlı herkes ve karşı taraf görür' : 'Çizim için karşı tarafın izni gerekiyor: tıklayınca izin istenir';
+  if (!on && drawMode) setDrawMode(false);
+  if (on && !was && drawAskedAt) {
+    drawAskedAt = 0;
+    toast('Çizim izni verildi');
+    if (connected && !drawMode) setDrawMode(true);
+  }
+}
+$('drawBtn').onclick = (e) => {
+  e.currentTarget.blur();
+  if (!drawAllowed && !drawMode) {
+    if (!connected) return;
+    if (Date.now() - drawAskedAt < 10000) { toast('İzin bekleniyor…'); return; }
+    drawAskedAt = Date.now();
+    send({ t: 'askdraw' });
+    toast('Çizim izni istendi. Karşı taraf onaylayınca çizebilirsin.');
+    return;
+  }
+  if (connected || drawMode) setDrawMode(!drawMode);
+};
 $('inkDone').onclick = () => setDrawMode(false);
 for (const b of document.querySelectorAll('#inkBar [data-tool]')) {
   b.onclick = () => {

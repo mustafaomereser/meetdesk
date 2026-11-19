@@ -42,9 +42,17 @@ func (a *App) onChat(m host.ChatMsg) {
 			s.Chat = s.Chat[len(s.Chat)-maxChatHistory:]
 		}
 	})
+	if m.ID != 0 { // bağlanan birinden (bu bilgisayarın kendi mesajı değil)
+		text := []rune(m.Text)
+		if len(text) > 120 {
+			text = append(text[:120], '…')
+		}
+		a.attention("chat", m.Name+" yazdı", string(text), false)
+	}
 }
 
 func (a *App) onFile(sid int, from, path string, size int64) {
+	a.attention("file", AppName, from+" bir dosya gönderdi: "+filepath.Base(path), false)
 	a.update(func(s *State) {
 		s.Received = append(s.Received, RecvFile{Name: filepath.Base(path), Path: path, From: from, Size: size, TS: time.Now().UnixMilli()})
 		if len(s.Received) > 20 {

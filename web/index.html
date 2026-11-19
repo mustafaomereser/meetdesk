@@ -187,6 +187,8 @@
             <button id="hReject" class="small">Reddet</button></span>
           </div>
 
+          <div id="askBox" class="asks"></div>
+
           <div class="ptabs" role="tablist" aria-label="Oturum">
             <button type="button" role="tab" data-tab="people" class="on">Kişiler <b id="ptPeople" class="pt-count"></b></button>
             <button type="button" role="tab" data-tab="chat">Sohbet <b id="ptChat" class="pt-count unread hidden"></b></button>
@@ -382,6 +384,13 @@
                   <span class="row-hint">Bağlananlar bu bilgisayara dosya gönderebilir (İndirilenler/Meetdesk klasörüne kaydedilir).</span>
                 </span>
                 <input type="checkbox" class="switch" id="allowFiles">
+              </label>
+              <label class="row">
+                <span class="row-text">
+                  <span class="row-title">Ekrana çizim ve işaret etme</span>
+                  <span class="row-hint">Kapalıyken bağlananlar çizmek için izin ister; izni kişi bazında Toplantı'dan verebilirsin.</span>
+                </span>
+                <input type="checkbox" class="switch" id="allowDraw">
               </label>
               <label class="row">
                 <span class="row-text">

@@ -31,6 +31,7 @@ func (a *App) applyHiddenLocked() {
 		rules[i] = capture.HideRule{Exe: h.Exe, Title: h.Title}
 	}
 	capture.SetHidden(rules)
+	capture.SetHideOwn(true) // Meetdesk'in kendi pencereleri (şifre, ayarlar) hiçbir zaman görünmez
 	a.st.HiddenApps = append([]HiddenApp{}, a.set.HiddenApps...)
 	a.st.HideSupported = capture.HideSupported
 }

@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"remotedesk/internal/hub"
 	"remotedesk/internal/update"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -63,6 +64,7 @@ type Session struct {
 	Remote  string `json:"remote"`
 	Since   int64  `json:"since"`
 	Control bool   `json:"control"` // fare/klavye izni (oturum başına)
+	Draw    bool   `json:"draw"`    // ekrana çizim ve işaret izni
 	Color   string `json:"color"`   // kişiye atanan renk
 }
 
@@ -125,6 +127,8 @@ type State struct {
 	AutoStart  bool        `json:"autoStart"` // bilgisayar açılınca (oturum açılınca) başlar
 
 	HiddenApps    []HiddenApp `json:"hiddenApps"`    // bağlananlara karartılan programlar
+	AllowDraw     bool        `json:"allowDraw"`     // bağlananlar varsayılan olarak çizebilir
+	Asks          []Ask       `json:"asks"`          // bekleyen izin istekleri (ör. çizim)
 	HideSupported bool        `json:"hideSupported"` // program gizleme bu sistemde var mı
 }
 
@@ -215,7 +219,7 @@ func New(o Options) *App {
 		Auth: a.checkPassword, Confirm: a.confirm, OnSession: a.onSession,
 		Video: a.videoInfo, Concurrent: a.concurrent, Perms: a.permissions,
 		Browser: a.browserAllowed, WebFS: web.FS, OnRTC: a.pushRTC, MaxViewers: a.maxViewers,
-		OnChat: a.onChat, OnFile: a.onFile, OnPrivacy: a.onPrivacy, FileDir: fileDir,
+		OnChat: a.onChat, OnAsk: a.onAsk, OnFile: a.onFile, OnPrivacy: a.onPrivacy, FileDir: fileDir,
 		Guest: a.isMeetingKey, OnStage: a.onStage,
 	}
 	a.peers.load(o.DataDir)
@@ -377,7 +381,9 @@ func (a *App) onSession(sid int, remote, name string, active bool) {
 			}
 		}
 		if active {
-			out = append(out, Session{ID: sid, Name: name, Remote: remote, Since: time.Now().UnixMilli(), Control: true, Color: a.host.SessionColor(sid)})
+			out = append(out, Session{ID: sid, Name: name, Remote: remote, Since: time.Now().UnixMilli(), Control: true, Draw: a.set.AllowDraw, Color: a.host.SessionColor(sid)})
+		} else {
+			s.Asks = slices.DeleteFunc(s.Asks, func(x Ask) bool { return x.ID == sid })
 		}
 		s.Sessions = out
 		after = len(out)
@@ -422,6 +428,7 @@ func (a *App) confirm(ctx context.Context, remote, name string) bool {
 	a.mu.Unlock()
 
 	go sysutil.Attention(WindowTitle)
+	go a.attention("conn", AppName, name+" bağlanmak istiyor.", true)
 
 	var ok bool
 	select {
@@ -685,16 +692,22 @@ func (a *App) uiHandler() http.Handler {
 		json.NewEncoder(w).Encode(map[string]string{"name": defaultName()})
 	})
 	mux.HandleFunc("POST /api/host/confirm", a.handleConfirm)
+	mux.HandleFunc("POST /api/host/ask", a.handleAsk)
 	mux.HandleFunc("POST /api/host/session", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			ID      int   `json:"id"`
 			Control *bool `json:"control"`
+			Draw    *bool `json:"draw"`
 		}
 		if err := readJSON(r, &body); err != nil {
 			http.Error(w, err.Error(), 400)
 			return
 		}
 		if body.Control != nil && !a.setSessionControl(body.ID, *body.Control) {
+			http.Error(w, "Bu kişi artık bağlı değil.", 404)
+			return
+		}
+		if body.Draw != nil && !a.setSessionDraw(body.ID, *body.Draw) {
 			http.Error(w, "Bu kişi artık bağlı değil.", 404)
 			return
 		}
@@ -1112,6 +1125,7 @@ func (a *App) togglePanel() {
 
 // showMain, ana pencereyi öne getirir; kapalıysa yeniden açar.
 func (a *App) showMain() {
+	a.clearAttention()
 	if a.opts.Headless || a.uiAddr == "" {
 		return
 	}
@@ -1125,6 +1139,7 @@ func (a *App) panelURL() string { return "http://" + a.uiAddr + "/?k=" + a.uiTok
 
 // showPanel, sağ alttaki oturum panelini açar ya da öne getirir.
 func (a *App) showPanel() {
+	a.clearAttention()
 	if a.opts.Headless || a.uiAddr == "" || os.Getenv("RD_DEV_UI") == "1" {
 		return
 	}

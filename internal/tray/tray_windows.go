@@ -4,6 +4,11 @@
 package tray
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
+	"math"
 	"runtime"
 	"sync"
 	"unsafe"
@@ -152,11 +157,63 @@ func Start(o Options) bool {
 	return <-ready
 }
 
-func add() bool {
+var (
+	iconPlain, iconBadge uintptr
+	badgeOn              bool
+)
+
+func makeIcon(pngData []byte) uintptr {
+	if len(pngData) == 0 {
+		return 0
+	}
 	size, _, _ := pGetSystemMetrics.Call(49) // SM_CXSMICON
-	var icon uintptr
-	if len(opts.Icon) > 0 {
-		icon, _, _ = pIconRes.Call(uintptr(unsafe.Pointer(&opts.Icon[0])), uintptr(len(opts.Icon)), 1, 0x00030000, size, size, 0)
+	icon, _, _ := pIconRes.Call(uintptr(unsafe.Pointer(&pngData[0])), uintptr(len(pngData)), 1, 0x00030000, size, size, 0)
+	return icon
+}
+
+// badgePNG, simgenin sağ üst köşesine mavi bir nokta (beyaz kenarlı) ekler.
+func badgePNG(src []byte) []byte {
+	img, err := png.Decode(bytes.NewReader(src))
+	if err != nil {
+		return nil
+	}
+	b := img.Bounds()
+	out := image.NewNRGBA(b)
+	w := float64(b.Dx())
+	r := w * 0.24
+	cx, cy := float64(b.Max.X)-r-w*0.02, float64(b.Min.Y)+r+w*0.02
+	ring := w * 0.05
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			c := color.NRGBAModel.Convert(img.At(x, y)).(color.NRGBA)
+			d := math.Hypot(float64(x)+0.5-cx, float64(y)+0.5-cy)
+			if d <= r+ring {
+				// beyaz kenar, içi kırmızı (kenar yumuşatmalı)
+				dot := color.NRGBA{0x0A, 0x84, 0xFF, 0xFF} // mavi: kırmızı ikon üstünde seçilsin
+				if d > r {
+					dot = color.NRGBA{0xFF, 0xFF, 0xFF, 0xFF}
+				}
+				t := math.Max(0, math.Min(1, r+ring-d+0.5))
+				c = color.NRGBA{
+					uint8(float64(dot.R)*t + float64(c.R)*(1-t)), uint8(float64(dot.G)*t + float64(c.G)*(1-t)),
+					uint8(float64(dot.B)*t + float64(c.B)*(1-t)), uint8(math.Max(float64(c.A), 255*t)),
+				}
+			}
+			out.SetNRGBA(x, y, c)
+		}
+	}
+	var buf bytes.Buffer
+	png.Encode(&buf, out)
+	return buf.Bytes()
+}
+
+func add() bool {
+	if iconPlain == 0 {
+		iconPlain = makeIcon(opts.Icon)
+	}
+	icon := iconPlain
+	if badgeOn && iconBadge != 0 {
+		icon = iconBadge
 	}
 	nid = notifyIconData{Wnd: hwnd, ID: 1, Flags: nifMessage | nifIcon | nifTip, CallbackMessage: wmTray, Icon: icon}
 	nid.Size = uint32(unsafe.Sizeof(nid))
@@ -180,6 +237,28 @@ func SetTooltip(s string) {
 	}
 	nid.Flags = nifTip
 	setTip(s)
+	pShellNotify.Call(nimModify, uintptr(unsafe.Pointer(&nid)))
+}
+
+// SetBadge, simgeye nokta koyar ya da kaldırır (okunmamış mesaj, bekleyen istek).
+func SetBadge(on bool) {
+	mu.Lock()
+	defer mu.Unlock()
+	if hwnd == 0 || badgeOn == on {
+		return
+	}
+	if on && iconBadge == 0 {
+		iconBadge = makeIcon(badgePNG(opts.Icon))
+		if iconBadge == 0 {
+			return
+		}
+	}
+	badgeOn = on
+	nid.Flags = nifIcon
+	nid.Icon = iconPlain
+	if on {
+		nid.Icon = iconBadge
+	}
 	pShellNotify.Call(nimModify, uintptr(unsafe.Pointer(&nid)))
 }
 

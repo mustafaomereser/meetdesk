@@ -46,6 +46,8 @@ type Server struct {
 	MaxViewers func() int
 	// OnChat, sohbete yeni mesaj gelince çağrılır (yerel arayüz için).
 	OnChat func(ChatMsg)
+	// OnAsk, bağlanan kişi bir izin istediğinde çağrılır (kind: "draw").
+	OnAsk func(sid int, name, kind string)
 	// OnFile, bağlanan kişiden bir dosya alınıp kaydedilince çağrılır.
 	OnFile func(sid int, from, path string, size int64)
 	// OnPrivacy, gizlilik modu açılıp kapanınca çağrılır.
@@ -137,6 +139,7 @@ type Perms struct {
 	Control   bool `json:"control"`   // fare ve klavye
 	Clipboard bool `json:"clipboard"` // pano paylaşımı (iki yönlü)
 	Files     bool `json:"files"`     // bağlanan kişi bu bilgisayara dosya gönderebilir
+	Draw      bool `json:"draw"`      // ekrana çizim ve işaret etme (varsayılan kapalı; kişi izin ister)
 }
 
 type message struct {
@@ -359,6 +362,41 @@ func (s *Server) KickSession(sid int) bool {
 	return false
 }
 
+// SetDraw, tek bir kişinin çizim/işaret iznini açar ya da kapatır (genel ayardan bağımsız).
+func (s *Server) SetDraw(sid int, on bool) bool {
+	sess := s.session(sid)
+	if sess == nil {
+		return false
+	}
+	if on {
+		sess.drawSet.Store(1)
+	} else {
+		sess.drawSet.Store(2)
+	}
+	sess.pokeLoop() // izin durumu izleyiciye gitsin
+	s.sendPeople()
+	return true
+}
+
+// DrawAllowed, kişinin o anki çizim izni.
+func (s *Server) DrawAllowed(sid int) bool {
+	if sess := s.session(sid); sess != nil {
+		return sess.allowed().Draw
+	}
+	return false
+}
+
+// Notice, tek bir kişiye kısa bir bildirim gönderir.
+func (s *Server) Notice(sid int, msg string) {
+	if sess := s.session(sid); sess != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			sess.notice(ctx, msg)
+		}()
+	}
+}
+
 // SetControl, tek bir kişinin fare/klavye iznini açar ya da kapatır (genel izin kapalıysa
 // açmak bir şey değiştirmez).
 func (s *Server) SetControl(sid int, on bool) bool {
@@ -392,15 +430,28 @@ func (s *Server) sendPeople() {
 		Name    string `json:"name"`
 		Color   string `json:"color"`
 		Control bool   `json:"control"`
+		Draw    bool   `json:"draw"`
+	}
+	// İzinler s.mu dışında okunur: allowed() uygulamanın kilidini alır; ters sırada kilit
+	// (uygulama -> sunucu) alan yollarla kilitlenme olmasın.
+	type entry struct {
+		id          int
+		name, color string
+		sess        *session
 	}
 	s.mu.Lock()
-	list := []person{}
+	var es []entry
 	for id, m := range s.sessions {
 		if m.sess != nil {
-			list = append(list, person{id, m.name, m.color, m.sess.allowed().Control})
+			es = append(es, entry{id, m.name, m.color, m.sess})
 		}
 	}
 	s.mu.Unlock()
+	list := []person{}
+	for _, e := range es {
+		p := e.sess.allowed()
+		list = append(list, person{e.id, e.name, e.color, p.Control, p.Draw})
+	}
 	sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
 	for id, sess := range s.live() {
 		go func(id int, sess *session) {

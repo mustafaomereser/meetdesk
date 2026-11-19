@@ -85,9 +85,14 @@ func cleanText(s string, max int) string {
 // handleMeeting, toplantı mesajlarını işler; mesaj bu gruptan değilse false döner.
 func (s *Server) handleMeeting(ctx context.Context, sess *session, m *message) bool {
 	switch m.T {
+	case "askdraw":
+		// Çizim/işaret izni isteği: bilgisayarın başındaki kişiye sorulur (en çok 10 sn'de bir).
+		if !sess.allowed().Draw && sess.askRate.allow(1, 10*time.Second) && s.OnAsk != nil {
+			s.OnAsk(sess.sid, sess.name, "draw")
+		}
 	case "pt":
 		v := sess.view.Load()
-		if v == nil || !sess.ptRate.allow(8, time.Second) {
+		if v == nil || !sess.allowed().Draw || !sess.ptRate.allow(8, time.Second) {
 			return true
 		}
 		x, y := min(max(m.X, 0), 10000), min(max(m.Y, 0), 10000)

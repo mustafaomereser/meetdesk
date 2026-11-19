@@ -15,6 +15,7 @@ type HideRule struct {
 	Title string
 }
 
+func SetHideOwn(bool)            {}
 func SetHidden([]HideRule)       {}
 func CleanTitle(t string) string { return t }
 func Apps() []RunningApp         { return nil }

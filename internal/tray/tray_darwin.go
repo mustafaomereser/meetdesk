@@ -20,3 +20,4 @@ func Start(o Options) bool      { return false }
 func SetTooltip(s string)       {}
 func Notify(title, text string) {}
 func Stop()                     {}
+func SetBadge(on bool)          {}

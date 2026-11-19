@@ -51,6 +51,9 @@ type session struct {
 	guest      bool                        // toplantı anahtarıyla geldi (yalnızca izleme)
 	srv        *Server                     // çizim ve katılımcı yayını için
 	noControl  atomic.Bool                 // bu kişinin fare/klavye izni ana kullanıcı tarafından kapatıldı
+	drawSet    atomic.Int32                // çizim izni: 0 genel ayar, 1 verildi, 2 kapatıldı
+	askRate    rate                        // izin isteği sınırı
+	ownLog     rate                        // "Meetdesk penceresi engellendi" günlük sınırı
 	view       atomic.Pointer[viewDisplay] // şu an izlenen monitör (çizim koordinatları için)
 	ptRate     rate                        // işaret etme hız sınırı
 	chatRate   rate
@@ -96,12 +99,18 @@ func newSession(c Conn, vi VideoInfo, wantH264 bool) *session {
 
 // allowed, bağlanan kişinin o anki izinleridir (Perms ayarlı değilse her şey serbest).
 func (s *session) allowed() Perms {
-	p := Perms{Control: true, Clipboard: true, Files: true}
+	p := Perms{Control: true, Clipboard: true, Files: true, Draw: true}
 	if s.perms != nil {
 		p = s.perms()
 	}
 	if s.noControl.Load() {
 		p.Control = false
+	}
+	switch s.drawSet.Load() {
+	case 1:
+		p.Draw = true
+	case 2:
+		p.Draw = false
 	}
 	return p
 }
@@ -153,6 +162,10 @@ func (s *session) readLoop(ctx context.Context) {
 			continue
 		}
 		if s.srv != nil && s.srv.handleMeeting(ctx, s, &m) {
+			continue
+		}
+		// Meetdesk'in kendi penceresi uzaktan kullanılamaz (şifre, ayarlar, bağlantı).
+		if s.ownWindowInput(&m) {
 			continue
 		}
 		switch m.T {
@@ -343,6 +356,33 @@ func (s *session) takeoverLabel(ctx context.Context) {
 }
 
 // blocked, uygulanmayan bir tıklamayı o noktada küçük bir halkayla gösterir.
+// ownWindowInput, girdi bu uygulamanın penceresine gidecekse true döner (uygulanmaz).
+// Bırakma (düğme/tuş yukarı) her zaman geçer: başka yerde basılmış bir düğme takılı kalmasın.
+func (s *session) ownWindowInput(m *message) bool {
+	switch m.T {
+	case "mb", "wh":
+		if m.T == "mb" && !m.D {
+			return false
+		}
+		dx, dy := s.in.Desktop(m.X, m.Y)
+		if !sysutil.OwnWindowAt(dx, dy) {
+			return false
+		}
+		if m.T == "mb" {
+			desktop.ClickBlocked(dx, dy)
+			if s.ownLog.allow(1, 10*time.Second) {
+				log.Printf("%s: Meetdesk penceresine uzaktan tıklama engellendi", s.name)
+			}
+		}
+		return true
+	case "k":
+		return m.D && sysutil.OwnForeground()
+	case "txt":
+		return sysutil.OwnForeground()
+	}
+	return false
+}
+
 func (s *session) blocked(x, y int) {
 	dx, dy := s.in.Desktop(x, y)
 	desktop.ClickBlocked(dx, dy)
@@ -370,7 +410,7 @@ func (s *session) sendState(ctx context.Context) {
 		s.c.WriteJSON(ctx, map[string]any{"t": "secure", "on": secure, "elevated": sysutil.IsElevated()})
 	}
 	if !s.statSent || p != s.lastPerms {
-		s.c.WriteJSON(ctx, map[string]any{"t": "perm", "control": p.Control, "clipboard": p.Clipboard, "files": p.Files})
+		s.c.WriteJSON(ctx, map[string]any{"t": "perm", "control": p.Control, "clipboard": p.Clipboard, "files": p.Files, "draw": p.Draw})
 	}
 	s.statSent, s.lastPerms, s.lastSecure = true, p, secure
 }

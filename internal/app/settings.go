@@ -30,6 +30,7 @@ type Settings struct {
 	MaxViewers     int  `json:"maxViewers"`     // aynı anda bağlanabilecek kişi (0: varsayılan)
 	AllowFiles     bool `json:"allowFiles"`     // bağlanan kişi dosya gönderebilir
 	QuitOnClose    bool `json:"quitOnClose"`    // ana pencere kapanınca uygulamadan çık (varsayılan: arka planda çalış)
+	AllowDraw      bool `json:"allowDraw"`      // bağlananlar izin istemeden çizebilir (varsayılan: kapalı)
 
 	HiddenApps []HiddenApp `json:"hiddenApps,omitempty"` // bağlananlara karartılarak gösterilen programlar
 
@@ -74,6 +75,7 @@ func (a *App) syncStateLocked() {
 	a.st.AllowBrowser = a.set.AllowBrowser
 	a.st.AllowFiles = a.set.AllowFiles
 	a.st.QuitOnClose = a.set.QuitOnClose
+	a.st.AllowDraw = a.set.AllowDraw
 	a.st.MaxViewers = a.maxViewersLocked()
 	a.applyHiddenLocked()
 }
@@ -123,7 +125,7 @@ func (a *App) browserAllowed() bool {
 func (a *App) permissions() host.Perms {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return host.Perms{Control: a.set.AllowControl, Clipboard: a.set.AllowClipboard, Files: a.set.AllowFiles}
+	return host.Perms{Control: a.set.AllowControl, Clipboard: a.set.AllowClipboard, Files: a.set.AllowFiles, Draw: a.set.AllowDraw}
 }
 
 // setOnline, gelen bağlantılara açık/kapalı durumunu değiştirir.
@@ -172,6 +174,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 		AllowBrowser   *bool `json:"allowBrowser"`
 		AllowFiles     *bool `json:"allowFiles"`
 		QuitOnClose    *bool `json:"quitOnClose"`
+		AllowDraw      *bool `json:"allowDraw"`
 		MaxViewers     *int  `json:"maxViewers"`
 		AutoStart      *bool `json:"autoStart"`
 	}
@@ -201,6 +204,7 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	set(&a.set.AllowBrowser, body.AllowBrowser)
 	set(&a.set.AllowFiles, body.AllowFiles)
 	set(&a.set.QuitOnClose, body.QuitOnClose)
+	set(&a.set.AllowDraw, body.AllowDraw)
 	if body.MaxViewers != nil {
 		a.set.MaxViewers = min(max(*body.MaxViewers, 1), 30)
 	}
@@ -210,6 +214,9 @@ func (a *App) handleSettings(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 	if body.Online != nil {
 		a.setOnline(*body.Online)
+	}
+	if body.AllowDraw != nil {
+		go a.refreshDraw()
 	}
 	writeOK(w)
 }
